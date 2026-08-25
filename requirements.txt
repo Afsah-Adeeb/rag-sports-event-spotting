@@ -1,8 +1,13 @@
-pymupdf==1.24.14        # reads PDFs and extracts text (handles 2-column academic papers well)
+pymupdf>=1.24.14         # reads PDFs and extracts text (handles 2-column academic papers well)
 sentence-transformers==3.3.1   # local, free embedding model (all-MiniLM-L6-v2)
-faiss-cpu==1.9.0.post1   # vector database for similarity search
+faiss-cpu>=1.9.0         # vector database for similarity search
 google-genai==2.19.0     # official Gemini API client
 python-dotenv==1.0.1     # loads API keys from a .env file instead of hardcoding them
-numpy==1.26.4            # array math, used by faiss + embeddings
+numpy>=1.26.4            # array math, used by faiss + embeddings
+# pymupdf/faiss-cpu/numpy are floor-pinned rather than exact: they ship compiled
+# wheels per-Python-version, and Streamlit Cloud's Python version is outside our
+# control (has jumped to 3.14 already) -- an exact pin risks a version with no
+# wheel for whatever interpreter is provisioned. Everything else is exact-pinned
+# for reproducibility since it's pure Python and doesn't have that failure mode.
 tqdm==4.67.1             # progress bars so you can see chunking/embedding progress
 streamlit==1.62.0        # web GUI for the chat interface
