@@ -1,5 +1,7 @@
 # Sports Event-Spotting Research Assistant
 
+**Live demo: [rag-event-spotting.streamlit.app](https://rag-event-spotting.streamlit.app/)**
+
 A RAG (Retrieval-Augmented Generation) chatbot that answers questions about a personal collection of
 research papers on sports video event-spotting / temporal action localization, with cited, grounded answers.
 
