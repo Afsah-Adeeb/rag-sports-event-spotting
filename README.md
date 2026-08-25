@@ -67,6 +67,56 @@ cd "D:\RAG System\src"
 Prints Hit Rate@k / Precision@k to the terminal and writes `eval/results.md` with every generated
 answer next to its retrieved sources, for manual faithfulness review.
 
+## What's committed and why
+
+Unusually for a repo, the PDFs (`data/papers/`) and the prebuilt FAISS index (`data/vector_store/`)
+are committed rather than ignored. That's deliberate: it makes the repo self-contained, so a hosted
+demo can answer questions immediately without a rebuild step, and anyone cloning it gets a working
+system without supplying their own corpus. The cost is repo size (~56MB) and the fact that the full
+extracted text of copyrighted papers lives in the history. The only thing never committed is `.env`
+(and `.streamlit/secrets.toml`) — the API key.
+
+## Deployment
+
+### Do I need to keep a server running forever?
+
+Not on your own machine, no. Running `streamlit run app.py` locally only works while that terminal is
+open and only on your computer — that's fine for demos you drive yourself, but it's not a link you can
+put on a resume. To get a permanent public URL, you host it somewhere that runs the server for you.
+
+### Option 1: Streamlit Community Cloud (free, recommended)
+
+Free, purpose-built for exactly this, and connects straight to a GitHub repo.
+
+- **How it works:** you point it at this repo and `src/app.py`; it installs `requirements.txt` and runs
+  the app on their infrastructure. You get a permanent `*.streamlit.app` URL.
+- **Auto-deploys:** every push to `main` redeploys automatically. No manual redeploy step.
+- **Sleeping:** free apps sleep after ~7 days with no visitors. They wake automatically on the next
+  visit (a ~30s cold start). The URL never dies — it's dormant, not deleted. Perfectly fine for a
+  resume link.
+- **Your API key:** do NOT commit it. In the app's Settings → Secrets, add:
+  ```toml
+  GEMINI_API_KEY = "your_actual_key"
+  ```
+  `app.py` already reads this automatically (see the `st.secrets` bridge at the top of the file).
+- **Resource limits:** ~1GB RAM on the free tier. This app loads a 384-dim MiniLM model plus a small
+  FAISS index, so it fits comfortably.
+
+Steps: push to GitHub → sign in at share.streamlit.io with GitHub → "New app" → pick the repo, branch
+`main`, main file path `src/app.py` → add the secret above → Deploy.
+
+### Option 2: Hugging Face Spaces (free)
+
+Also free and always-on (no sleeping), and arguably a better fit culturally for an ML portfolio since
+recruiters in ML already browse HF profiles. Requires a small `app.py`-at-root convention change or a
+Space config file, and secrets go in Space Settings → Variables and secrets.
+
+### Option 3: Keep it local
+
+Entirely legitimate. Record a short screen capture of the app answering a few questions and put the GIF
+in this README — many interviewers prefer a 20-second demo video over clicking a live link anyway, and
+it costs nothing and never breaks.
+
 ## Troubleshooting
 
 - **`'D:\RAG' is not recognized...`** — you're in `cmd.exe` and a path with a space wasn't quoted.
