@@ -1,0 +1,15 @@
+# Secrets -- never commit
+.env
+.streamlit/secrets.toml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local scratch
+*.pkl
+
+# NOTE: data/papers/*.pdf and data/vector_store/ are intentionally COMMITTED
+# so the repo is self-contained and a hosted demo can serve answers without
+# a rebuild step. See README "What's committed and why".

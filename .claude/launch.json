@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "streamlit-app",
+      "runtimeExecutable": "D:/RAG System/.venv/Scripts/streamlit.exe",
+      "runtimeArgs": ["run", "D:/RAG System/src/app.py", "--server.headless", "true"],
+      "port": 8501
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+pymupdf==1.24.14        # reads PDFs and extracts text (handles 2-column academic papers well)
+sentence-transformers==3.3.1   # local, free embedding model (all-MiniLM-L6-v2)
+faiss-cpu==1.9.0.post1   # vector database for similarity search
+google-genai==2.19.0     # official Gemini API client
+python-dotenv==1.0.1     # loads API keys from a .env file instead of hardcoding them
+numpy==1.26.4            # array math, used by faiss + embeddings
+tqdm==4.67.1             # progress bars so you can see chunking/embedding progress
+streamlit==1.62.0        # web GUI for the chat interface

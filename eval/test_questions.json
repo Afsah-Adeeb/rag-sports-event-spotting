@@ -1,0 +1,20 @@
+[
+  {
+    "question": "What is the E2E-Spot architecture?",
+    "correct_papers": ["Spotting Temporally Precise, Fine-Grained Events in Video.pdf"],
+    "notes": "example question - replace with your own set of 15-20"
+  },
+  {
+    "question": "How does T-DEED handle temporal discriminability?",
+    "correct_papers": ["T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf"],
+    "notes": "example question - replace with your own set of 15-20"
+  },
+  {
+    "question": "What datasets does SoccerNet provide?",
+    "correct_papers": [
+      "Deep learning for action spotting in association football videos.pdf",
+      "Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf"
+    ],
+    "notes": "example question with multiple acceptable source papers - replace with your own set of 15-20"
+  }
+]
