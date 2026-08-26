@@ -7,7 +7,7 @@ on whatever it memorized during training.
 
 PROMPT DESIGN
 ---------------
-The prompt has three deliberate rules baked in:
+The prompt has two deliberate rules baked in:
   1. Only answer from the provided context (this is what makes it
      "retrieval-augmented" rather than just chatting with a generic LLM --
      the model's job is to synthesize the retrieved text, not recall facts
@@ -15,9 +15,14 @@ The prompt has three deliberate rules baked in:
   2. Say so explicitly if the context doesn't contain the answer, instead
      of guessing. This matters a lot for evaluation later (Step 5): we want
      to be able to tell "hallucinated" apart from "correctly said I don't know."
-  3. Cite which paper(s) it drew from, using the source_paper/page metadata
-     we tracked all the way from ingest.py. This is what lets you (and an
-     interviewer) verify an answer is actually grounded, not just plausible.
+
+The model is deliberately NOT asked to cite sources inline in the answer
+text (no "[paper.pdf, p.5]" scattered through the prose) -- that reads as
+clutter compared to a normal AI chat answer. Grounding is still fully
+checkable: the retrieved chunks (source_paper/page metadata tracked all the
+way from ingest.py) are returned alongside the answer and shown in a
+collapsed "Sources" section by the UI, the same pattern ChatGPT/Claude/
+Gemini use for citations.
 
 We use gemini-2.0-flash: it's on Gemini's free tier, fast, and more than
 capable for summarizing a handful of retrieved paragraphs.
@@ -51,10 +56,7 @@ def _get_client():
 
 def build_prompt(question, retrieved_chunks):
     """Combine the question with retrieved context into one prompt for Gemini."""
-    context_blocks = []
-    for chunk in retrieved_chunks:
-        source = f"[{chunk['source_paper']}, p.{chunk['page_start']}-{chunk['page_end']}]"
-        context_blocks.append(f"{source}\n{chunk['text']}")
+    context_blocks = [chunk["text"] for chunk in retrieved_chunks]
     context = "\n\n---\n\n".join(context_blocks)
 
     return f"""You are a research assistant answering questions about a collection of \
@@ -63,8 +65,9 @@ academic papers on sports video event-spotting / temporal action localization.
 Answer the question using ONLY the context below. Follow these rules:
 - If the context does not contain enough information to answer, say so explicitly \
 instead of guessing or using outside knowledge.
-- Cite which paper(s) you used for each part of your answer, using the filenames \
-shown in brackets before each context block.
+- Write a clean, natural answer, like a normal AI chat assistant -- do NOT insert \
+inline citations, brackets, or paper filenames into the text. Sources are shown \
+separately by the UI, not in the prose.
 - Be concise and technical -- this is for a researcher, not a general audience.
 
 Context:
