@@ -173,25 +173,44 @@ def chunk_paragraphs(paragraphs, chunk_size, overlap):
     return overlapped
 
 
-def process_paper(pdf_path):
-    """Turn one PDF into a list of chunk dicts, ready to embed."""
-    pages = extract_pages(pdf_path)
+def chunks_from_pages(pages, source_paper):
+    """Shared core: (page_num, text) pairs -> list of chunk records.
+
+    Split out from process_paper() so the Streamlit app can chunk an uploaded
+    PDF held in memory through the exact same boilerplate-stripping and
+    chunking path as the offline pipeline -- one implementation, so a browser
+    upload and a `ingest.py` run can never drift apart.
+    """
     boilerplate = find_boilerplate_lines(pages)
     pages = strip_boilerplate(pages, boilerplate)
     paragraphs = pages_to_paragraphs(pages)
     chunks = chunk_paragraphs(paragraphs, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
 
+    stem = source_paper[:-4] if source_paper.lower().endswith(".pdf") else source_paper
     records = []
     for i, chunk in enumerate(chunks):
         records.append({
-            "chunk_id": f"{pdf_path.stem}__{i}",
-            "source_paper": pdf_path.name,
+            "chunk_id": f"{stem}__{i}",
+            "source_paper": source_paper,
             "chunk_index": i,
             "page_start": chunk["page_start"],
             "page_end": chunk["page_end"],
             "text": chunk["text"],
         })
     return records
+
+
+def process_paper(pdf_path):
+    """Turn one PDF file on disk into a list of chunk dicts, ready to embed."""
+    return chunks_from_pages(extract_pages(pdf_path), pdf_path.name)
+
+
+def process_pdf_bytes(source_paper, data):
+    """Turn an in-memory PDF (bytes) into chunk dicts -- used for browser uploads."""
+    doc = fitz.open(stream=data, filetype="pdf")
+    pages = [(page_num, page.get_text()) for page_num, page in enumerate(doc, start=1)]
+    doc.close()
+    return chunks_from_pages(pages, source_paper)
 
 
 def main():

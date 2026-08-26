@@ -36,6 +36,26 @@ Both do the exact same thing under the hood — same retrieval, same Gemini call
 
 ## Adding more papers
 
+There are two routes, and they do different things.
+
+### Route 1 — Upload in the browser (instant, temporary)
+
+Open the **Library** tab in the app and drop PDFs into the upload box. They're chunked and embedded
+on the spot and become answerable within a few seconds.
+
+**These uploads live only in your browser session.** They are not written to the server, and they
+disappear when the app restarts or you reload. That's deliberate, for two reasons:
+- Streamlit Community Cloud's filesystem is ephemeral — anything written at runtime is wiped on the
+  next restart or redeploy, so "saving" it would silently lose your papers.
+- The hosted app is public. Persisting uploads server-side would let any visitor permanently change
+  the corpus everyone else queries.
+
+Use this for a quick "what does this new paper say?" — or to demo the pipeline on someone else's PDF.
+
+### Route 2 — Commit to the repo (permanent)
+
+This is how the corpus actually grows.
+
 **Where:** Drop the new PDF files directly into `data/papers/`. No renaming, no folders — just the file itself.
 
 **What to run:** From `src/`, run these two, in this order:
@@ -57,6 +77,12 @@ cd "D:\RAG System\src"
 **What to refresh:** If `app.py` (Streamlit) or `cli.py` was already running, it's holding the *old*
 index in memory — restart it (stop with `Ctrl+C`, run the launch command again) so it picks up the new
 index. Just refreshing the browser tab is not enough.
+
+**To update the live demo:** commit and push the new PDFs *and* the regenerated `data/vector_store/`,
+then Streamlit Cloud auto-redeploys within a minute or two:
+```
+git add data/ && git commit -m "Add papers" && git push
+```
 
 ## Evaluation
 

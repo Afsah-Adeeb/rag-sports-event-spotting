@@ -41,29 +41,49 @@ def _load_resources():
     return _model, _index, _metadata
 
 
-def retrieve(question, top_k=config.DEFAULT_TOP_K):
-    """
-    Return the top_k most relevant chunks for `question`, each as a dict:
-    {chunk_id, source_paper, page_start, page_end, text, score}.
-    `score` is cosine similarity in [-1, 1] (in practice ~[0, 1] for real text).
-    """
-    model, index, metadata = _load_resources()
+def embed_texts(texts):
+    """Embed a list of texts with the same model/normalization used for the corpus.
 
-    query_vector = model.encode(
-        [question],
+    Exposed so callers that build their own index (e.g. the Streamlit app adding
+    session-uploaded papers) embed identically to embed_store.py -- vectors from
+    two different code paths must live in the same space to be comparable.
+    """
+    model, _, _ = _load_resources()
+    return model.encode(
+        texts,
         normalize_embeddings=True,
         convert_to_numpy=True,
     ).astype("float32")
 
+
+def base_index_and_metadata():
+    """Return the on-disk FAISS index and its metadata list (loaded once per process)."""
+    _, index, metadata = _load_resources()
+    return index, metadata
+
+
+def search(question, index, metadata, top_k=config.DEFAULT_TOP_K):
+    """Search an arbitrary (index, metadata) pair -- the corpus one, or one the
+    caller extended with extra vectors. `metadata[i]` must describe vector `i`."""
+    query_vector = embed_texts([question])
     scores, positions = index.search(query_vector, top_k)
 
     results = []
     for score, pos in zip(scores[0], positions[0]):
         if pos == -1:  # FAISS pads with -1 if there are fewer than top_k vectors total
             continue
-        chunk = metadata[pos]
-        results.append({**chunk, "score": float(score)})
+        results.append({**metadata[pos], "score": float(score)})
     return results
+
+
+def retrieve(question, top_k=config.DEFAULT_TOP_K):
+    """
+    Return the top_k most relevant chunks for `question`, each as a dict:
+    {chunk_id, source_paper, page_start, page_end, text, score}.
+    `score` is cosine similarity in [-1, 1] (in practice ~[0, 1] for real text).
+    """
+    index, metadata = base_index_and_metadata()
+    return search(question, index, metadata, top_k=top_k)
 
 
 if __name__ == "__main__":
