@@ -1,0 +1,393 @@
+[page 1]
+Temporal Feature Distillation for Label-Efficient Precise Event Spotting in Sports Videos Hao Xu Deakin University Melbourne, Australia august.xu@research.deakin.edu.au Xinyu Wei Champion Data Melbourne, Australia felix.wei@championdata.com.au Sam Wells Paralympics Australia Melbourne, Australia sam.wells@paralympic.org.au Sunil Aryal Deakin University Melbourne, Australia sunil.aryal@deakin.edu.au Abstract Precise Event Spotting (PES) requires distinguishing visually similar yet semantically distinct adjacent frames, making it fundamentally different from image classification and coarse action recognition.
+Although self-distillation methods such as DINO have shown strong representation learning ability in images, we find that directly apply- ing them to PES is ineffective: without supervised guidance, subtle but crucial motion cues are often suppressed as noise, leading to representations that are insensitive to precise event boundaries.
+To address this, we propose Temporal Feature Distillation, a semi- supervised objective that aligns temporally informative backbone features, rather than projection-head outputs, to preserve motion- sensitive and boundary-aware cues for frame-level localization.
+A supervised warm-up with a ramp-up schedule further stabilizes training by ensuring that meaningful event cues are learned be- fore unlabeled distillation begins.
+We also introduce Transformer Gate Shift, a multi-scale gated shifting module that injects motion- aware temporal information into Vision Transformers.
+Experiments on four fine-grained sports benchmarks show consistent improve- ments over fully supervised and semi-supervised baselines.
+Under 10% supervision on FSPerf, our method improves mAP by 4.54 points over the strongest competing approach, and with only 80% labeled data, it matches or surpasses the fully supervised 100% base- line on two of the four datasets.
+Code is available at the anonymous repository: https://anonymous.4open.science/r/TFD-8535.
+CCS Concepts • Computing methodologies →Computer vision.
+Keywords Precise event spotting, semi-supervised learning, sports video un- derstanding Introduction With the rapid growth of broadcast and amateur recordings, sports videos have become an important source for performance analy- sis, coaching, and audience engagement [36].
+Among sports video understanding tasks, detecting the precise moment of key events plays a fundamental role in interpreting game dynamics [6].
+Precise Event Spotting (PES) is a task specifically designed for sports videos, aiming to identify both the temporal location and the category of events—such as a forehand stroke in tennis or a pass in soccer—from long, untrimmed video sequences [6].
+Unlike coarse action recognition, PES requires frame-level temporal precision and faces unique challenges inherent to sports scenarios, including rapid motion, frequent occlusion, camera motion, and visually subtle events [6, 30, 31].
+Although recent fully supervised methods have achieved promis- ing results on multiple sports datasets [6, 16, 26, 31, 37], their re- liance on dense frame-level annotations limits scalability [17].
+An- notating sports videos is time-consuming, often requires expert knowledge, and can be inconsistent when event boundaries are ambiguous.
+The challenge is even greater in amateur sports videos, where lower frame rates make precise timestamp annotation more difficult.
+Another defining characteristic of sports videos is their continu- ous and large-scale generation, as new matches are recorded daily across professional and amateur levels.
+Effectively leveraging this ever-growing pool of unlabeled data is therefore essential.
+In paral- lel, Unsupervised (USL) and semi-supervised learning (SSL) have gained substantial attention and demonstrated success in various domains, including 2D image classification [2, 33], segmentation, and general video action recognition [8, 9, 19, 20, 29, 32, 34].
+De- spite this progress, such approaches remain largely underexplored in sports-specific PES, where their potential impact is particularly significant.
+Although SSL and USL have been highly effective for image representation learning, directly applying existing self-distillation frameworks to PES is non-trivial.
+Methods such as DINO [2, 14, 18] align projection-head outputs across augmented views to encourage semantic invariance, which is well suited to image classification.
+In contrast, PES requires discriminating between temporally adjacent frames that may appear visually similar yet correspond to different event states.
+Enforcing strong projection-level invariance in this setting can suppress the subtle temporal boundary cues required for precise spotting.
+Through systematic analysis (Figure 4), we observe that DINO- style projection alignment over-smooths representations across neighboring frames, reducing boundary sensitivity that is criti- cal for PES.
+Motivated by this observation, we propose Temporal Feature Distillation (TFD), which aligns temporally structured back- bone features rather than projection-head outputs. arXiv:2607.10998v1  [cs.CV]  13 Jul 2026
+
+[page 2]
+Figure 1: Performance comparison across four sports datasets under varying annotation ratios.
+Our method consistently outperforms both the supervised baseline and the strongest competing SSL method across label regimes.
+Using only 80% labeled data, it matches or surpasses the fully supervised 100% baseline on 2 of 4 datasets.
+At 10% supervision, our method shows consistent gains across all datasets.
+Furthermore, we introduce a temporal-aware Vision Transformer backbone by integrating a multi-scale gated shifting mechanism into a standard 2D ViT.
+This design enables temporal information ex- change across frames while retaining the simple and effective struc- ture of image-based transformers, without relying on dedicated video-specific architectures.
+In addition, we propose motion-aware and temporally consistent augmentation strategies that explicitly emphasize moving objects—an important characteristic of sports videos, where background appearance often remains largely static and event-relevant information is primarily driven by motion.
+Extensive experiments across multiple sports datasets show that our approach consistently outperforms existing SSL methods and strong fully supervised baselines, particularly in low-label regimes.
+Under only 10% supervision on FSPerf, it improves mAP by 4.54 points over the strongest competing approach.
+As shown in Figure 1, it also matches or exceeds the fully supervised 100% baseline using only 80% labeled data on two of the four datasets.
+Our key contributions are summarized as follows: • Temporal Feature Distillation: a task-driven alternative to DINO-style self-distillation that replaces projection-head alignment with temporally structured backbone-feature align- ment, preserving motion-sensitive and boundary-aware cues for frame-level event localization. • A multi-scale gated shifting module tailored for Vision Transformers that enables temporal exchange without re- quiring a dedicated video-transformer design. • Motion-aware and temporally consistent augmenta- tion strategies designed specifically for sports videos to prevent trivial learning and enhance temporal continuity.
+Related Work Precise Event Spotting PES was originally introduced by Hong et al.
+[6] as a task specifically designed for sports video understanding.
+The objective of PES is to predict a set of temporal locations (frame indices) at which events occur, along with their corresponding event classes.
+A prediction is considered correct if its timestamp falls within a tolerance window of 𝛿frames around a ground-truth event and the predicted class label is correct, where 𝛿is typically set between 1 and 3 frames.
+Existing PES methods primarily adopt two paradigms for tempo- ral modeling: transformer-based approaches and lightweight shift- based modules.
+Transformer-based methods [1, 30, 40] and more complex temporal modeling designs [16] are capable of capturing long-range temporal dependencies, but often incur substantial com- putational overhead, typically exceeding 600 GFLOPs.
+In contrast, lightweight temporal modules such as TSM [10], GSM [21], and GSF [22] enable 2D vision backbones to model temporal information efficiently, achieving competitive accuracy with significantly lower computational cost (approximately 40–45 GFLOPs).
+Owing to this favorable efficiency–accuracy trade-off, shift-based modules have become a core component of several state-of-the-art PES models [6, 16, 26, 31].
+E2E-Spot [6] established a strong and efficient baseline for PES by integrating GSM into a RegNetY [15] backbone and is widely regarded as a foundational model in this domain.
+Building upon this framework, subsequent works have improved temporal discrimi- nation through finer-grained temporal perception (T-DEED [31]), vision–language feature fusion (UGLF [26]), and enhanced spa- tial–temporal feature injection combined with contrastive learning (ASTRM [16]).
+Multimodal approaches such as ASTRA [30] fur- ther extend PES by incorporating audio cues to complement visual information.
+Notably, all these methods rely on fully supervised learning, requiring extensive frame-level annotations.
+Unsupervised Learning Unsupervised learning, particularly in the form of self-supervised learning, has emerged as an effective paradigm for pretraining deep models without relying on manual annotations.
+By designing surrogate learning objectives, self-supervised methods enable mod- els to learn meaningful representations that can be transferred to downstream tasks with limited labeled data.
+Among these approaches, DINO [2] has demonstrated that strong visual representations can be learned through self-distillation by enforcing consistency between different augmented views of the same image, without using any labels.
+Models pretrained with DINO achieve competitive performance after fine-tuning on small labeled datasets.
+Building upon this idea, Teeti et al.
+[24] extends self-distillation to videos by introducing asymmetric temporal con- texts, where the teacher observes a broader temporal window to encourage the student to predict future information and capture temporal dependencies.
+
+[page 3]
+TFD Weak Strong (Motion Aware + Temporal Dropout) ViT Encoder Block (T,E) Left Shift  Static Right Shift Delta = 1 Delta = 3 Delta = 5 Softmax Weighting Linear Projection ⊕ ViT TGS Student  ViT Encoder ViT TGS Temporal Block ViT Encoder Block ViT TGS ViT Encoder ViT TGS Teacher (EMA Student) Conv 1D (delta =1) (Linear + Sigmoid) Gate ⊙ Shifting Operation Frame X Figure 2: Overall architecture of the proposed SSL framework.
+The student and EMA teacher networks are built upon ViT encoder blocks with TGS modules and a temporal block.
+Multi-scale gated temporal shifting and motion-aware augmentations are used to enable effective temporal feature distillation.
+Alternatively, VideoMAE [25] adopts a masked autoencoding strategy with a high masking ratio, training models to reconstruct masked video content and thereby learn compact spatiotemporal representations.
+While these methods have shown strong perfor- mance in representation learning, they are primarily designed for pretraining and do not directly address task-specific supervision such as frame-level event localization.
+Semi-Supervised Learning Semi-supervised learning aims to leverage large amounts of un- labeled data alongside a limited set of labeled samples [3], often incorporating techniques from self-supervised learning.
+SSL has been extensively studied in 2D vision tasks such as image classi- fication, image retrieval, and object detection.
+Motivated by these successes, recent works have increasingly explored SSL in the video domain [3].
+Most image or video-based SSL methods are built upon two core principles: consistency regularization and pseudo-labeling [27].
+Consistency regularization encourages a model to produce in- variant predictions under perturbations in the input or model space, while pseudo-labeling assigns high-confidence predictions on un- labeled data as supervisory signals during training.
+Consistency- based approaches typically rely on data augmentations or multi- view sampling to enforce feature or prediction consistency across different views of the same video.
+Representative methods include FixMatch [20], SVFormer [34], End-to-End Semi-Supervised Learn- ing for Video [8], VideoSSL [7], and recent extensions tailored for video representation learning [9].
+In contrast, pseudo-labeling- based approaches focus on generating reliable labels for unlabeled data, often through teacher–student frameworks or multi-view agreement mechanisms [13, 19, 28, 32, 35].
+Recent work by Liu et al.
+[11] represents one of The first attempts to apply SSL to sports video event spotting via multimodal knowledge distillation, where a student RGB model is guided by a teacher, integrating pose estima- tion, ball tracking, and court detection.
+While effective, this reliance on multiple domain-specific pretrained models limits scalability and generalisability.
+In contrast, our approach operates purely on RGB frames without any auxiliary components.
+Method Problem Definition We consider PES in sports videos under a semi-supervised setting.
+Given an input clip 𝑋∈R𝑇×𝐻×𝑊×3, the task is to predict an event class for each frame.
+The training set D = {𝑋𝑖}𝑁 𝑖=1 is divided into a labeled subset D𝑙, which provides frame-level event annotations, and an unlabeled subset D𝑢, which contains no annotations.
+Our objective is to improve frame-level event classification by exploiting D𝑢together with the limited labeled data in D𝑙.
+Transformer Gate Shift (TGS) Vision Transformers (ViTs) have been widely adopted across com- puter vision tasks, including self-supervised representation learning in DINO [2], due to their strong ability to capture fine-grained spa- tial details and the interpretability offered by self-attention mech- anisms.
+In contrast, existing fully supervised approaches for PES predominantly rely on 2D CNN backbones for their simplicity and efficiency.
+When combined with temporal modules such as MFS [37], GSM [21], GSF [22], and TSM [10], CNN-based models can capture temporal information without introducing dedicated video backbones.
+However, these temporal modules are primarily
+
+[page 4]
+Figure 3: Effect of the proposed Temporal Motion Augmenta- tion.
+The top row shows augmented frames, while the bottom row presents the corresponding original images. designed for convolutional architectures, and effective temporal modelling mechanisms for 2D ViTs remain underexplored.
+To address this limitation, we adopt a Vision Transformer back- bone and propose TGS as shown in Figure 2, a temporal module tailored for ViTs.
+TGS enables temporal information exchange while preserving the core token-processing structure of image-based transformers.
+In practice, TGS is inserted at the end of each ViT encoder block, allowing temporal information to be progressively injected throughout the backbone.
+Let the input token features be X ∈R𝐵×𝑇×𝑁×𝐶, where 𝐵denotes the batch size, 𝑇the temporal length, 𝑁the number of tokens per frame, and 𝐶the feature dimen- sion.
+We first apply layer normalization and ReLU activation to X, and then reshape the features to ˜X ∈R(𝐵·𝑁)×𝐶×𝑇so that temporal convolution can be applied independently to each token sequence along the temporal dimension.
+To capture temporal context at mul- tiple scales, we apply depthwise 1D convolutions with kernel sizes 𝑘𝑑= 2𝑑+ 1, where 𝑑∈D = {1, 3, 5}.
+For each scale, the temporally aggregated feature is passed through an MLP that preserves the channel dimension 𝐶, followed by a sigmoid activation to generate a full element-wise gate: G(𝑑) = 𝜎  MLP  Conv1D(𝑑) ( ˜X)  , where Conv1D(𝑑) operates along the temporal dimension and G(𝑑) ∈ R(𝐵·𝑁)×𝐶×𝑇is the resulting gate tensor.
+Unlike GSM, GSF, and re- lated gating-based temporal modules that typically generate coarse gates for only a few channel groups, TGS produces a gate value for every feature element.
+This full element-wise gating allows finer control over temporal information flow and helps preserve subtle local cues that are important for precise event spotting.
+The input features are split equally along the channel dimension into three groups, X =  Xpast, Xfuture, Xstatic  , and the corresponding gates are partitioned in the same way: G(𝑑) = h G(𝑑) past, G(𝑑) future, G(𝑑) static i .
+Each component is modulated by its corresponding gate: ˜X(𝑑) ∗ = G(𝑑) ∗ ⊙X∗, ∗∈{past, future, static}, where ⊙denotes element-wise multiplication.
+Only the gated past and future groups are temporally shifted, while the static group remains unchanged.
+This design enables feature-wise control over whether and how temporal information is exchanged across frames.
+Temporal shifting is then applied as Y(𝑑) = Concat  Shift−𝑑( ˜X(𝑑) past), Shift+𝑑( ˜X(𝑑) future), ˜X(𝑑) static  , where Shift−𝑑and Shift+𝑑denote temporal shifts toward the past and future, respectively.
+The outputs from different temporal scales are fused using learn- able softmax-normalized weights: Y = ∑︁ 𝑑∈D 𝛼𝑑Y(𝑑), 𝛼𝑑= exp(𝑤𝑑) Í 𝑗∈D exp(𝑤𝑗) .
+Finally, a projection layer and a residual connection are applied: Z = X + Proj(Y), yielding temporally enhanced token representations that can be seamlessly integrated into standard Vision Transformer blocks.
+Temporal Motion Augmentation (TMA) Consistency regularization typically trains a student to match a teacher under stronger augmentations, encouraging invariance to input perturbations.
+While effective in image-based learning, directly applying standard image augmentations to sports videos is suboptimal.
+Random cropping or masking may remove small but critical cues such as the ball, and large static background regions can dominate the augmented views, reducing sensitivity to event- relevant motion.
+To address this, we propose TMA, shown in Figure 3, which is designed to emphasize motion-sensitive regions in sports videos.
+Our design is motivated by the observation that the most informa- tive elements in PES are typically moving objects, such as the ball and player contact regions.
+Concretely, we compute a motion map using frame differences between adjacent frames, which highlights moving regions with- out requiring external components such as tracking or detection models.
+The motion map is divided into non-overlapping spatial patches, and each patch is assigned a motion score by averaging its top 2% highest-motion pixels.
+This top-percentile strategy helps pre- serve small but fast-moving objects that would otherwise be over- whelmed by static background areas.
+Patches are then ranked by motion score, and the highest-motion regions are preserved while the remaining background regions are down-weighted, thereby encouraging the model to focus on motion-relevant cues.
+In addition, we introduce temporal masking by randomly drop- ping multiple short temporal segments from each clip.
+This forces the model to infer missing information from surrounding frames and encourages stronger temporal reasoning.
+Together, these spa- tial and temporal augmentations produce more informative views for consistency-based learning in semi-supervised PES.
+Temporal Feature Distillation (TFD) While TGS already yields strong performance under fully super- vised training, effectively leveraging large amounts of unlabeled sports videos remains essential for further improving generaliza- tion.
+To this end, we adopt a self-distillation framework inspired
+
+[page 5]
+Frame index (within clip) Inter-frame cosine similarity cos(f_t, f_{t+1}) Inter-frame Cosine Similarity: TFD vs DINO (Lower at boundary = higher boundary sensitivity) TFD (Ours) DINO GT event boundary Figure 4: Inter-frame cosine similarity between adjacent backbone features for TFD (ours) and DINO on a representative Tennis clip.
+TFD features consistently exhibit sharp similarity drops at ground-truth event boundaries (dotted lines), indicating high boundary sensitivity.
+DINO features remain near-constant (˜1.0) across most boundaries, confirming that projection-level invariance suppresses the temporal discriminability required for precise event spotting. by DINO, while introducing task-driven modifications specifically tailored for PES.
+Given an input video clip X ∈R𝐵×𝑇×𝐶×𝐻×𝑊, we generate two augmented views using weak and strong augmentation strategies, denoted as X𝑤and X𝑠, respectively.
+The student network processes the strongly augmented view X𝑠, while the teacher network pro- cesses the weakly augmented view X𝑤.
+The teacher parameters are updated as an exponential moving average (EMA) [23] of the student parameters, providing stable targets during training.
+Unlike standard DINO-style self-distillation, which aligns projection- head outputs to promote semantic invariance, such invariance is less suitable for PES.
+PES requires distinguishing between temporally adjacent frames that are visually similar yet semantically distinct.
+Enforcing projection-level invariance can suppress subtle temporal boundaries and motion-sensitive cues that are critical for accurate event localization.
+In sports videos, this may bias the model toward dominant large-scale motion, such as player movement, while re- ducing sensitivity to small but semantically important objects such as the ball, as illustrated in Figure 5.
+This limitation can be partially understood through DINO’s prototype-based design.
+DINO learns a large set of prototypes to capture diverse semantic categories in image datasets.
+However, frames within a short sports video clip typically occupy a much narrower semantic space and exhibit high visual similarity.
+As a result, projection-head alignment may encourage neighboring frames to map to a limited subset of pro- totypes, reducing temporal separability and weakening sensitivity to fine-grained event transitions.
+This reveals a mismatch between projection-level invariance and the frame-level localization objec- tive of PES.
+To empirically validate this claim, Figure 4 visualises the inter- frame cosine similarity cos(𝑓𝑡, 𝑓𝑡+1) between adjacent backbone features for both TFD and DINO on a representative Tennis clip.
+DINO features remain near-constant (≥0.999) across almost all ground-truth event boundaries, confirming that projection-level invariance suppresses temporal discriminability.
+In contrast, TFD features exhibit sharp similarity drops at boundaries — reducing to as low as 0.003 at one boundary compared to 0.999 for DINO — while maintaining a non-boundary average of 0.936, demonstrating that TFD preserves boundary-sensitive representations without collapsing overall feature quality.
+To address this issue, we introduce Temporal Feature Distillation, which aligns temporally structured backbone features produced by the TGS-enhanced ViT directly, rather than projected repre- sentations.
+By distilling features that explicitly encode multi-scale temporal dependencies, TFD better preserves motion-sensitive and boundary-aware information that is crucial for frame-level event spotting.
+In addition, we observe that purely unsupervised pre- training is insufficient for PES.
+For computational efficiency, sports videos are typically resized to relatively low resolutions, where small but critical objects such as tennis or table tennis balls may occupy only a few pixels.
+Without supervised guidance, these sub- tle motion cues can be treated as noise and ignored by the model.
+To mitigate this issue, we adopt a supervised warm-up strategy, in which the model is first trained on labeled data to establish event- aware and object-sensitive representations.
+The unlabeled distilla- tion loss is then gradually introduced using a ramp-up schedule, enabling the model to exploit unlabeled data without suppressing small yet essential event cues.
+Together, these design choices enable effective semi-supervised learning for PES by combining the sta- bility of self-distillation with task-aware temporal representations and motion-focused supervision.
+Distillation Objective.
+Let the teacher and student networks ex- tract backbone features from the weakly and strongly augmented views: F𝑡= T (X𝑤), F𝑠= S(X𝑠), F𝑡, F𝑠∈R𝐵×𝑇×𝐷, where T denotes the EMA teacher and S the student.
+Features are ℓ2-normalized along the channel dimension, and gradients are stopped on the teacher branch.
+Temporal alignment loss.
+We align temporally corresponding frames by minimizing cosine distance between teacher and student
+
+[page 6]
+features: Lalign = 𝐵|Ω| 𝐵 ∑︁ 𝑏=1 ∑︁ 𝑡∈Ω  1 −cos  F𝑠 𝑏,𝑡, sg(F𝑡 𝑏,𝑡)  , where Ω = {1, . . . ,𝑇} denotes the set of temporal indices (identical for the weak and strong views), and sg(·) indicates the stop-gradient operator.
+Supervised loss.
+For labeled data, the event spotting head is trained with the standard cross-entropy loss: Lsup = CE(ˆy, y), where ˆy denotes the predicted class probabilities and y the ground- truth event labels.
+Overall objective.
+The final training objective combines the supervised loss and the temporal feature distillation loss: LTFD = Lsup + 𝜆(𝑡) Lalign, The weight 𝜆(𝑡) is introduced after a supervised warm-up stage and is progressively increased using a cosine ramp-up schedule.
+Specifically, the model is first trained using only Lsup for 5 epochs.
+The distillation term is then activated and its weight is gradually increased from 0 to 1 over the next 10 epochs, after which it remains fixed at 1 for the rest of training.
+Datasets To evaluate the effectiveness of our method, we conduct experi- ments on several widely adopted PES benchmarks, including Ten- nis, Figure Skating, and FineDiving.
+Tennis [6] contains 3,345 video clips collected from 28 professional tennis matches, recorded at 25 or 30 FPS.
+The dataset includes 33,791 frame-level event anno- tations across six event categories.
+Following the standard protocol, videos from 19 matches are used for training and validation, while the remaining 9 matches are reserved for testing.
+Figure Skating [5] includes 371 short-program performances extracted from 11 broadcast videos recorded at 25 FPS during Winter Olympics and World Championships events.
+The dataset provides 3,674 anno- tated events across four classes.
+Following [6], we evaluate on two standard splits: the Competition Split (FSComp) and the Perfor- mance Split (FSPerf).
+FineDiving [38] contains 3,000 diving clips with temporal annotations, totaling 7,010 events across four classes.
+We convert the annotations into frame-level labels following the evaluation protocol in [6] to ensure consistency with existing PES benchmarks.
+Evaluations Experimental Details All experiments are conducted on 8 NVIDIA A100 GPUs.
+Unless oth- erwise specified, models are trained for 50 epochs with a batch size of 4 using the AdamW optimizer [12].
+The learning rate and weight decay are both set to 1 × 10−4, and the default clip length is 100 frames.
+In semi-supervised training, the teacher model is updated as an EMA of the student following Mean Teacher [23].
+We use a base EMA decay of 0.9995 and a fast EMA decay of 0.99.
+We first perform a supervised warm-up for 5 epochs.
+The unlabeled distillation loss is then introduced progressively using a cosine ramp-up schedule over 10 epochs, with the maximum weighting coefficient 𝜆set to 1.
+For TMA, each frame is partitioned into a 16 × 16 grid.
+We identify the 9 grid cells with the largest temporal variation and apply the augmentation with probability 0.5.
+For frame masking, the mask length is set to 3, with at most 5 masked segments per video clip.
+More details can be found in the supplementary materials.
+Evaluation Protocol We evaluate our method under semi-supervised settings across all datasets by varying the proportion of labeled training data.
+Specifi- cally, we consider 10%, 20%, 40%, and 80% labeled data, covering both low-label and label-rich regimes, with particular emphasis on the low-label setting.
+For fair comparison, all methods are trained with three different random seeds, and the reported results are averaged across runs.
+We follow the standard evaluation protocols adopted in recent state-of-the-art PES methods [6, 16, 31].
+Performance is measured using Average Precision within a temporal tolerance of 𝛿 frames (AP@𝛿).
+AP is computed independently for each event class, and mean Average Precision (mAP) is obtained by averaging across all classes.
+Following prior work, we emphasize strict localization performance, particularly at 𝛿= 1.
+Results under other tolerance settings, including 𝛿∈{0, 2}, are provided in the supplementary materials.
+Baselines.
+We compare our method against recent fully super- vised, semi-supervised, and self-supervised approaches.
+For meth- ods not originally designed for PES, particularly SSL and USL meth- ods, we adapt them to the PES setting under a unified implemen- tation protocol.
+In particular, all ViT-based baselines use the same ViT-S + TGS backbone, together with the same input resolution, clip length, optimizer, training schedule, and evaluation protocol unless method-specific components require otherwise.
+This controlled setting reduces confounding factors from backbone architecture and temporal modeling capacity, allowing the comparison to focus mainly on differences in learning objectives.
+Since some SSL/USL methods were originally proposed with different architectural or procedural assumptions, these results should be interpreted as con- trolled adaptations to PES rather than exact reproductions of each method’s original optimal setting.
+For fully supervised baselines, results under 100% annotation are provided in the supplementary material.
+Performance Comparison Table 1 presents quantitative comparisons with recent fully super- vised, SSL, and USL approaches under varying annotation ratios.
+Overall, our method achieves the best mAP in 14 out of 16 evalua- tion settings, demonstrating consistent superiority across datasets and supervision regimes.
+The advantage is particularly pronounced in low-label scenarios, where effective utilization of unlabeled data becomes critical.
+Under the 10% annotation setting, our method consistently delivers the largest performance gains.
+For example, on FSPerf with 10% labeled data, the strongest competing method (ASTRM) achieves 45.75 mAP, whereas our method reaches 50.29 mAP, yielding a substantial improvement of +4.54.
+Similar trends are observed across all four datasets, where our approach outper- forms both fully supervised and SSL baselines under limited super- vision.
+As the amount of labeled data increases, our method remains competitive and maintains leading performance in most cases.
+On
+
+[page 7]
+Table 1: Performance comparison (mAP %) under different annotation ratios (10%, 20%, 40%, 80%) across fine-grained sports datasets.
+Our method demonstrates clear advantages in low-label regimes while remaining competitive as supervision increases.
+Complete results for all annotation ratios are provided in the supplementary material.
+Model Tennis FS_Comp FS_Perf FineDiving Fully Supervised ASTRM [16] E2E-200 [6] T-Deed [31] MFS [37] ViT-Tiny [4] ViT-Small [4] SSL & USL Kwon et al.
+[9] Teeti et al.
+[24] Zhou et al.
+[39] Dino [2] Ours Ours (ViT-S) Table 2: Ablation on Tennis and FSPerf with ViT backbones.
+Results are mAP (%) at 𝛿= 1 using 10% labeled data.
+(1) evalu- ates the contributions of TGS and TFD across backbone scales; (2) compares TFD with different view generation strategies, where Δ is relative to TFD + Standard Views; and (3) studies clip length for the full model, where Δ is relative to the de- fault setting 𝐿= 100.
+Section Variant Tennis FSPerf mAP Δ mAP Δ (1) Architectural Contribution ViT-Tiny – – ViT-Tiny + TGS +33.81 +7.57 ViT-Tiny + TFD +41.64 +6.48 ViT-Tiny + TGS + TFD +61.30 +21.96 ViT-Small – – ViT-Small + TGS +16.83 +12.76 ViT-Small + TFD +9.29 +0.89 ViT-Small + TGS + TFD +11.80 +8.92 (2) TFD Under Different View Generation Strategies TFD + Standard Views – – TFD + Temporal Aug.
+(Ours) +4.87 +1.73 (3) Varying Clip Length (Full Model) 𝐿= 50 -6.69 +5.56 𝐿= 75 -2.81 +6.68 𝐿= 100 – – 𝐿= 125 -3.47 +8.68 𝐿= 200 -4.15 +8.49 Tennis, where even 10% supervision already provides strong learn- ing signals, our approach still achieves the best results at higher ratios (e.g., 93.04 mAP at 80%), demonstrating that the gains are not limited to low-resource settings.
+In summary, the results in- dicate that our method (1) substantially improves performance in low-label regimes, (2) scales effectively as supervision increases, and (3) generalizes well across datasets of varying difficulty.
+Ablations We conduct ablation studies to analyze the contribution of each de- sign component, as shown in Table 2.
+All results are reported under a strict temporal tolerance of 𝛿= 1, and experiments are performed on two representative datasets (Tennis and FSPerf) to demonstrate that the observed trends are consistent across different sports sce- narios.
+All ablations are conducted under the 10% labeled setting with identical training configurations unless otherwise specified.
+TGS.
+We first evaluate the impact of the proposed TGS under fully supervised training by comparing both ViT-Tiny and ViT- Small backbones with and without TGS.
+As shown in Table 2, adding TGS consistently improves performance across both model scales.
+For ViT-Tiny, TGS boosts mAP from 10.96 to 44.77 on Tennis and from 2.13 to 9.70 on FSPerf.
+For ViT-Small, it further improves performance from 51.56 to 68.39 on Tennis and from 28.61 to 41.37 on FSPerf, corresponding to gains of +16.83 mAP and +12.76 mAP, respectively.
+These results show that TGS effectively injects temporal modeling capacity into ViT backbones, with consistent benefits across different model sizes.
+TFD.
+We further analyze the proposed TFD objective under different view generation strategies.
+Even with standard augmenta- tion, TFD already outperforms the fully supervised ViT baseline, showing its ability to exploit unlabeled data effectively.
+However, TFD without TGS is suboptimal, as vanilla ViT primarily captures spatial features and lacks explicit temporal modeling.
+When com- bined with TGS, TFD becomes substantially more effective because the teacher–student alignment is performed on features that already encode meaningful temporal patterns.
+
+[page 8]
+Figure 5: Attention map comparison between our TFD (top) and vanilla DINO (bottom) across Tennis, Figure Skating, and Diving.
+Our model attends to event-relevant regions such as the ball, while DINO diffuses attention across dominant background structures.
+Figure 5 further supports this observation through attention map comparisons with vanilla DINO across three sports.
+DINO often focuses mainly on the player while neglecting small but im- portant cues such as the ball, or produces diffuse attention over the whole frame.
+In contrast, our method consistently attends to event-relevant regions, including the ball and player contact areas.
+This more localized and discriminative attention pattern is consis- tent with the quantitative gains in Table 1, especially in low-label regimes.
+TMA.
+TMA emphasizes motion-salient regions when construct- ing paired temporal views before applying TFD.
+By encouraging feature alignment to focus on dynamically changing regions rather than static background content, the model learns more discrimi- native and event-relevant representations.
+As shown in Table 2, this leads to a clear improvement (+4.87 mAP) on Tennis, reaching 80.19 mAP.
+The gain is more pronounced on Tennis likely because the camera is usually static, making motion regions easier to sepa- rate from the background.
+In contrast, the improvement on FS is more limited, as camera motion often co-occurs with athlete mo- tion, making motion cues less distinctive.
+These results confirm the importance of motion-aware temporal pairing for effective feature distillation in PES.
+Clip Length.
+We further study the effect of clip length on per- formance.
+As shown in Table 2, the optimal temporal context is dataset-dependent.
+On Tennis, performance degrades consistently as clip length deviates from the default 𝐿= 100, with drops of up to −6.69 mAP at 𝐿= 50, suggesting that Tennis events are best cap- tured within a moderate and precise temporal window.
+In contrast, on FSPerf, all alternative clip lengths outperform the default setting, with both shorter clips (𝐿= 75, +6.68) and longer clips (𝐿= 125, +8.68; 𝐿= 200, +8.49) yielding consistent gains.
+This indicates that FSPerf benefits from a different temporal context, where shorter clips may reduce irrelevant motion while longer clips better cap- ture the preparation and follow-through phases of figure skating elements.
+Nevertheless, we adopt 𝐿= 100 as the default setting because it is a standard choice in prior PES methods [5, 16] and Table 3: Model complexity comparison.
+CNN-based and ViT- based methods are grouped separately because their compu- tational characteristics are not directly comparable.
+FPS is measured under the same inference setting for all models.
+Model Params (M) GFLOPs FPS CNN-based E2E-200 MFS ASTRM T-DEED ViT-based ViT-Tiny ViT-Tiny + TGS ViT-Small ViT-Small + TGS provides a practical balance between temporal coverage, computa- tional cost, and overall performance across datasets.
+These results suggest that while 𝐿= 100 serves as a strong and consistent default, clip length remains an important dataset-specific hyperparameter in sports video understanding.
+Model Complexity.
+Table 3 reports parameter count, GFLOPs, and FPS.
+Parameter count is computed as the total number of learn- able parameters.
+GFLOPs are obtained from the measured MACs using the standard conversion 1 MAC = 2 FLOPs, and FPS is mea- sured as the number of processed frames per second during infer- ence on a single clip of 100 frames after warm-up.
+Since CNN-based and ViT-based PES models differ substantially in their underlying computational characteristics, direct efficiency comparisons across these architectural families are not entirely fair.
+We therefore fo- cus on the incremental overhead introduced by TGS relative to the vanilla ViT-S backbone.
+Compared with ViT-S, TGS increases the parameter count by 5.44M (from 23.45M to 28.89M), the com- putational cost by 355.85 GFLOPs (from 644.30 to 1000.15), and reduces inference speed from 1649 FPS to 867 FPS.
+Although this introduces a non-trivial overhead, it consistently improves spot- ting performance.
+Under fully supervised training, TGS improves mAP by +16.83 on Tennis and +12.76 on FSPerf over ViT-S, with larger gains observed when combined with TFD and temporal aug- mentation.
+These results indicate that TGS provides a favorable accuracy–complexity trade-off within the ViT-based PES setting.
+Conclusion In this paper, we propose a semi-supervised framework for PES that improves both temporal modeling and unlabeled data utiliza- tion.
+We introduce TGS to inject temporal motion cues into ViT backbones, TFD to align temporally meaningful features across aug- mented views, and TMA to emphasize motion-salient regions dur- ing semi-supervised training.
+Experiments on multiple fine-grained sports datasets show consistent improvements across annotation ra- tios, with especially strong gains in low-label settings.
+These results highlight the importance of task-aware temporal representation learning for fine-grained sports video understanding.
+More detailed discussions on limitations and future directions are provided in the supplementary material.
+
+[page 9]
+References [1] Mengqi Cao, Min Yang, Guozhen Zhang, Xiaotian Li, Yilu Wu, Gangshan Wu, and Limin Wang. 2022.
+SpotFormer: A transformer-based framework for precise soccer action spotting.
+In 2022 IEEE 24th International Workshop on Multimedia Signal Processing (MMSP).
+IEEE, 1–6.
+[2] Mathilde Caron, Hugo Touvron, Ishan Misra, Hervé Jégou, Julien Mairal, Piotr Bojanowski, and Armand Joulin. 2021.
+Emerging properties in self-supervised vision transformers.
+In Proceedings of the IEEE/CVF international conference on computer vision. 9650–9660.
+[3] Yanbei Chen, Massimiliano Mancini, Xiatian Zhu, and Zeynep Akata. 2022.
+Semi- supervised and unsupervised deep visual learning: A survey.
+IEEE transactions on pattern analysis and machine intelligence 46, 3 (2022), 1327–1347.
+[4] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xi- aohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. 2020.
+An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 (2020).
+[5] James Hong, Matthew Fisher, Michaël Gharbi, and Kayvon Fatahalian. 2021.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision. 9254– 9263.
+[6] James Hong, Haotian Zhang, Michaël Gharbi, Matthew Fisher, and Kayvon Fa- tahalian. 2022.
+Spotting temporally precise, fine-grained events in video.
+In European Conference on Computer Vision.
+Springer, 33–51.
+[7] Longlong Jing, Toufiq Parag, Zhe Wu, Yingli Tian, and Hongcheng Wang. 2021.
+Videossl: Semi-supervised learning for video classification.
+In Proceedings of the IEEE/CVF winter conference on applications of computer vision. 1110–1119.
+[8] Akash Kumar and Yogesh Singh Rawat. 2022.
+End-to-end semi-supervised learn- ing for video action detection.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 14700–14710.
+[9] Donghyeon Kwon, Inho Kim, and Suha Kwak. 2025.
+Boosting Semi-Supervised Video Action Detection with Temporal Context.
+In 2025 IEEE/CVF Winter Confer- ence on Applications of Computer Vision (WACV).
+IEEE, 847–858.
+[10] Ji Lin, Chuang Gan, and Song Han. 2019.
+Tsm: Temporal shift module for efficient video understanding.
+In Proceedings of the IEEE/CVF international conference on computer vision. 7083–7093.
+[11] Zhaoyu Liu, Kan Jiang, Murong Ma, Zhe Hou, Yun Lin, and Jin Song Dong. 2025.
+Few-Shot Precise Event Spotting via Unified Multi-Entity Graph and Distillation. arXiv preprint arXiv:2511.14186 (2025).
+[12] Ilya Loshchilov and Frank Hutter. 2017.
+Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 (2017).
+[13] Sauradip Nag, Xiatian Zhu, Yi-Zhe Song, and Tao Xiang. 2022.
+Semi-supervised temporal action detection with proposal-free masking.
+In European Conference on Computer Vision.
+Springer, 663–680.
+[14] Maxime Oquab, Timothée Darcet, Théo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El- Nouby, et al. 2023.
+Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 (2023).
+[15] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Dollár. 2020.
+Designing network design spaces.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 10428–10436.
+[16] Sanchayan Santra, Vishal Chudasama, Pankaj Wasnik, and Vineeth N Balasub- ramanian. 2025.
+Precise Event Spotting in Sports Videos: Solving Long-Range Dependency and Class Imbalance.
+In Proceedings of the Computer Vision and Pattern Recognition Conference. 3163–3172.
+[17] Madeline C Schiappa, Yogesh S Rawat, and Mubarak Shah. 2023.
+Self-supervised learning for videos: A survey.
+Comput.
+Surveys 55, 13s (2023), 1–37.
+[18] Oriane Siméoni, Huy V Vo, Maximilian Seitzer, Federico Baldassarre, Maxime Oquab, Cijo Jose, Vasil Khalidov, Marc Szafraniec, Seungeun Yi, Michaël Rama- monjisoa, et al. 2025.
+Dinov3. arXiv preprint arXiv:2508.10104 (2025).
+[19] Ayush Singh, Aayush J Rana, Akash Kumar, Shruti Vyas, and Yogesh Singh Rawat. 2024.
+Semi-supervised active learning for video action detection.
+In Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 38. 4891–4899.
+[20] Kihyuk Sohn, David Berthelot, Nicholas Carlini, Zizhao Zhang, Han Zhang, Colin A Raffel, Ekin Dogus Cubuk, Alexey Kurakin, and Chun-Liang Li. 2020.
+Fixmatch: Simplifying semi-supervised learning with consistency and confidence.
+Advances in neural information processing systems 33 (2020), 596–608.
+[21] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz. 2020.
+Gate-shift networks for video action recognition.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 1102–1111.
+[22] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz. 2023.
+Gate-shift-fuse for video action recognition.
+IEEE Transactions on Pattern Analysis and Machine Intelligence 45, 9 (2023), 10913–10928.
+[23] Antti Tarvainen and Harri Valpola. 2017.
+Mean teachers are better role models: Weight-averaged consistency targets improve semi-supervised deep learning results.
+Advances in neural information processing systems 30 (2017).
+[24] Izzeddin Teeti, Rongali Sai Bhargav, Vivek Singh, Andrew Bradley, Biplab Baner- jee, and Fabio Cuzzolin. 2023.
+Temporal DINO: A Self-Supervised Video Strategy to Enhance Action Prediction.
+In Proceedings of the IEEE/CVF International Con- ference on Computer Vision (ICCV) Workshops. 3281–3291.
+[25] Zhan Tong, Yibing Song, Jue Wang, and Limin Wang. 2022.
+Videomae: Masked autoencoders are data-efficient learners for self-supervised video pre-training.
+Advances in neural information processing systems 35 (2022), 10078–10093.
+[26] Kim Hoang Tran, Phuc Vuong Do, Ngoc Quoc Ly, and Ngan Le. 2024.
+Unifying global and local scene entities modelling for precise action spotting.
+In 2024 International Joint Conference on Neural Networks (IJCNN).
+IEEE, 1–8.
+[27] Jesper E Van Engelen and Holger H Hoos. 2020.
+A survey on semi-supervised learning.
+Machine learning 109, 2 (2020), 373–440.
+[28] Renaud Vandeghen, Anthony Cioppa, and Marc Van Droogenbroeck. 2022.
+Semi- supervised training to improve player and ball detection in soccer.
+In Proceedings of the IEEE/cvf conference on computer vision and pattern recognition. 3481–3490.
+[29] Xiang Wang, Shiwei Zhang, Zhiwu Qing, Yuanjie Shao, Changxin Gao, and Nong Sang. 2021.
+Self-supervised learning for semi-supervised temporal action proposal.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 1905–1914.
+[30] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clapés. 2023.
+Astra: An action spotting transformer for soccer videos.
+In Proceedings of the 6th International Workshop on Multimedia Content Analysis in Sports. 93–102.
+[31] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clapés. 2024.
+T-deed: Temporal-discriminability enhancer encoder-decoder for precise event spotting in sports videos.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 3410–3419.
+[32] Kun Xia, Le Wang, Sanping Zhou, Gang Hua, and Wei Tang. 2023.
+Learning from noisy pseudo labels for semi-supervised temporal action localization.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision. 10160– 10169.
+[33] Qizhe Xie, Minh-Thang Luong, Eduard Hovy, and Quoc V Le. 2020.
+Self- training with noisy student improves imagenet classification.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 10687–10698.
+[34] Zhen Xing, Qi Dai, Han Hu, Jingjing Chen, Zuxuan Wu, and Yu-Gang Jiang. 2023.
+Svformer: Semi-supervised video transformer for action recognition.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 18816–18826.
+[35] Bo Xiong, Haoqi Fan, Kristen Grauman, and Christoph Feichtenhofer. 2021.
+Mul- tiview pseudo-labeling for semi-supervised learning from video.
+In Proceedings of the IEEE/CVF international conference on computer vision. 7209–7219.
+[36] Hao Xu, Arbind Agrahari Baniya, Sam Well, Mohamed Reda Bouadjenek, Richard Dazeley, and Sunil Aryal. 2025.
+Deep Learning for Sports Video Event Detection: Tasks, Datasets, Methods, and Challenges. arXiv:2505.03991 [cs.CV] https: //arxiv.org/abs/2505.03991 [37] Hao Xu, Xinyu Wei, Sam Wells, and Sunil Aryal. 2025.
+Multi-Focus Temporal Shifting for Precise Event Spotting in Sports Videos. arXiv:2507.07381 [cs.CV] https://arxiv.org/abs/2507.07381 [38] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu. 2022.
+Finediving: A fine-grained dataset for procedure-aware action quality assessment.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 2949–2958.
+[39] Feixiang Zhou, Bryan Williams, and Hossein Rahmani. 2024.
+Towards adap- tive pseudo-label learning for semi-supervised temporal action localization.
+In European Conference on Computer Vision.
+Springer, 320–338.
+[40] He Zhu, Junwei Liang, Chengzhi Lin, Jun Zhang, and Jianming Hu. 2022.
+A transformer-based system for action spotting in soccer videos.
+In Proceedings of the 5th international acm workshop on multimedia content analysis in sports. 103–109.

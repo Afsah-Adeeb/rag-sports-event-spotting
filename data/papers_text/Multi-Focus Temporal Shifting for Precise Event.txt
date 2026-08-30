@@ -1,0 +1,215 @@
+[page 1]
+Multi-Focus Temporal Shifting for Precise Event Spotting in Sports Videos Hao Xu∗, Xinyu Wei†, Sam Wells‡, and Sunil Aryal∗ ∗Deakin University, Melbourne, Australia †Champion Data, Melbourne, Australia ‡Paralympics Australia, Melbourne, Australia {august.xu, sunil.aryal}@deakin.edu.au, felix.wei@championdata.com.au, sam.wells@paralympic.org.au Abstract—Precise Event Spotting (PES) in sports videos re- quires frame-level recognition of fine-grained actions from single- camera footage.
+Existing PES models typically incorporate lightweight temporal modules such as the Gate Shift Module (GSM) or the Gate Shift Fuse to enrich 2D CNN feature extractors with temporal context.
+However, these modules are limited in both temporal receptive field and spatial adaptability.
+We propose Multi-Focus Temporal Shifting Module (MFS) that enhances GSM with multi-scale temporal shifts and Group Focus Module, enabling efficient modeling of both short and long- term dependencies while focusing on salient regions.
+MFS is a lightweight, plug-and-play module that integrates seamlessly with diverse 2D backbones.
+To further advance the field, we introduce the Table Tennis Australia dataset, the first PES benchmark for table tennis containing over 4,800 precisely annotated events.
+Extensive experiments across five PES benchmarks demonstrate that MFS consistently improves performance with minimal over- head, achieving leading results among lightweight methods (+4.09 mAP, 45 GFLOPs).
+All code and datasets are publicly available at https://anonymous.4open.science/r/MSAGSM-B0A4.
+Index Terms—Video Event Detection, Temporal Modelling I.
+INTRODUCTION Detecting the precise moment when events occur in a video is a core challenge in video understanding, particularly in the single-camera setting commonly used in most sports recordings.
+Precise Event Spotting (PES) aims to localize and classify events at frame-level accuracy, typically within a 1–2 frame tolerance [1].
+This fine-grained precision is critical in sports scenarios, where even a few frames of deviation can correspond to a different event entirely.
+Accurate PES provides a strong foundation for downstream tasks such as ball track- ing, player positioning, and automatic highlight generation.
+Moreover, precise spotting plays a vital role in post-game analysis by highlighting key moments and reducing the need to manually browse full-length videos.
+For instance, according to Table Tennis Australia’s sports analytics team, annotating events in a single match video can take 4–5 hours.
+Automating this process not only streamlines analysis but also enables timely feedback for athletes and coaches.
+Recent progress in video understanding has introduced transformer-based models [2], [3], multimodal architectures [4], [5], and self-supervised frameworks [6].
+E2E-Spot [1] remains a widely adopted baseline for PES and has inspired several state-of-the-art (SOTA) extensions that incorporate increasingly heavy temporal modules, including T-DEED [7], UGLF [8], and ASTRM [9].
+At the core of these lightweight models lies the Gate Shift Module (GSM) [10], which enriches 2D CNNs with temporal cues through adjacent-frame shifting.
+However, GSM has two key limitations: a restricted temporal receptive field (t±1), which works only for near-instantaneous events and fails when longer temporal context is required (Figure 1), and a lack of spatial selectivity (Figure 2), which limits meaningful temporal exchange when salient regions occupy only a small portion of the frame.
+While recent works like ASTRM [9] address these issues using heavy temporal modules, they incur high computational costs.
+We argue that complex architectures are not required.
+By applying principled multi-scale shifts and grouped focusing, we achieve compet- itive performance while maintaining practical efficiency for deployment.
+PES remains challenging because events often differ from their surrounding frames only subtly—sometimes requiring several frames of context for human annotators to disam- biguate [7].
+Different event types also rely on varying temporal ranges, making fixed-range temporal modeling insufficient.
+Furthermore, the dominance of background pixels in sports videos requires models to attend to small but salient regions (e.g., ball contact points), highlighting the need for efficient spatial focusing in addition to temporal reasoning.
+Another practical challenge is the lack of suitable datasets.
+Most public sports video datasets are taken from broadcast footage [1], [11]–[13], recorded from stable, high-quality camera views.
+In contrast, real-world settings—such as local or developmental leagues—often rely on handheld recordings with varied view- points, inconsistent quality, and frequent occlusions.
+Existing datasets also tend to have sparse event distributions, making them less representative of sports with rapid, densely packed actions.
+To address the identified limitations in temporal model- ing, we propose Multi-Focus Temporal Shifting (MFS), a lightweight extension of GSM that addresses both tempo- ral range and spatial selectivity through principled design choices.
+MFS captures long-range temporal dependencies through multi-scale feature shifts rather than fixed adjacent- frame operations, providing direct access to broader temporal windows (e.g., t±1, t±3, t±6) when needed.
+To manage the arXiv:2507.07381v3  [cs.CV]  4 Dec 2025
+
+[page 2]
+Ball Tossing Actual Serve (Event) Serve Done Illustration of a table-tennis serve sequence.
+Identifying the actual serve event requires information from earlier frames showing the ball toss and preparation, as well as later frames showing the completion phase.
+This demonstrates that temporal cues beyond t±1 are necessary for accurate event spotting. increased noise from larger temporal windows, we introduce a Grouped Focus Module (GFM) that divides feature chan- nels into groups, each learning independent spatial attention masks to focus on distinct salient regions (e.g., ball position, player movements).
+Unlike transformer-based multi-head at- tention which requires expensive query–key–value computa- tions, GFM provides efficient spatial selectivity through simple grouped convolutions.
+Beyond our methodological contributions, we also fill a critical gap in PES benchmarks by introducing the Table Ten- nis Australia (TTA) dataset.
+Unlike existing datasets captured from broadcast-quality recordings of elite competitions, TTA contains realistic footage collected using handheld cameras with varied viewpoints, motion blur, and frequent occlu- sions—closely mirroring real-world sports analytics scenarios under limited-budget conditions.
+With 4,878 annotated events across 39 matches, TTA exhibits approximately 2× higher event density than prior benchmarks, presenting unique chal- lenges for fine-grained temporal modeling.
+The dataset will be made publicly available for research use.
+Our main contributions are as follows: (1) We propose MFS, a plug-and-play module that integrates multi-scale temporal shifting with grouped spatial focusing, achieving superior performance with minimal computational overhead (1.3% additional parameters); (2) We introduce the TTA dataset—the first PES benchmark for table tennis—featuring realistic recording conditions and 2× higher event density than existing benchmarks, addressing critical gaps in available resources; and (3) Through extensive experiments across five benchmarks and three architectural frameworks, we demon- strate that MFS consistently advances SOTA methods by up to 4.09% while maintaining efficiency, achieving leading perfor- mance among lightweight approaches with only 45 GFLOPs compared to 67.24 GFLOPs for recent complex architectures.
+II.
+RELATED WORK Video understanding tasks such as classification and action recognition typically rely on sparse frame sampling [14]– [16].
+In contrast, Precise Event Spotting (PES) requires dense sampling to localize fine-grained events where visual cues are subtle and temporally narrow [17].
+Unlike Temporal Action MFShift E2E Fig. 2.
+Heatmap visualizations across three event types: Row 1 — occluded ball-bounce; Row 2 — normal ball-bounce; Row 3 — jump-landing.
+MFS yields sharper, more meaningful focus regions, attending to players/table when the ball is occluded, to ball–racket interactions during normal bounce, and to the skater’s boot at landing.
+Detection [18], [19], which predicts action intervals, PES aims to pinpoint the exact event frame.
+Two main paradigms exist for temporal modeling in PES: transformer-based approaches and lightweight shift- based modules.
+Transformers [2], [3], [5] or complicated temporal modules [9] capture long-range context but incur high computational cost (600+ GFLOPs), whereas lightweight methods such as TSM [20], GSM [10], and GSF [21] de- liver competitive accuracy with far lower overhead (40–45 GFLOPs).
+These shift-based modules form the foundation of several SOTA PES models [1], [7], [8].
+The PES task emerged from SoccerNet [12], which evolved from relaxed (±50 f) to high-precision tolerances.
+E2E-Spot [1] established an efficient baseline using GSM with Reg- NetY.
+Subsequent works improved temporal discrimination via finer-grained perception (T-DEED [7]), vision–language fusion (UGLF [8]), or spatial–temporal feature injection and contrastive learning (ASTRM [9]).
+Multimodal approaches such as ASTRA [5] further incorporate audio cues.
+Despite the strong performance of GSM-based methods, GSM suffers from two core limitations: (1) a fixed adjacent- frame shift (t±1), restricting the temporal receptive field, and (2) a lack of spatial selectivity, even though sports videos contain large background regions.
+Rather than introducing a new architecture, we extend the efficiency of shift-based modeling.
+Our proposed MFS addresses these limitations using multi-scale temporal shifts and grouped spatial focus, achieving leading accuracy among lightweight methods (45 GFLOPs).
+
+[page 3]
+III.
+METHOD A.
+Overview and Design Rationale We introduce two targeted extensions: (1) multi-scale tem- poral shifts to access longer temporal ranges, and (2) grouped spatial focusing for efficient region-aware modulation.
+MFS integrates into standard 2D CNN backbones as a drop-in replacement for GSM.
+These additions introduce only 0.06M parameters (1.3% overhead) while providing broader temporal receptive fields and spatial selectivity.
+B.
+Grouped Focus Module (GFM) In sports videos, event-critical information is localized to small regions—ball position, player hand movements, or racket contact—while 60-80% of pixels represent background.
+A single global attention map forces all feature channels to compete for the same spatial focus, limiting the ability to simultaneously track multiple relevant entities (e.g., ball and player position).
+To enable efficient multi-region attention, GFM divides feature channels into G groups (default G=2), each learning an independent spatial focus map.
+This allows different groups to specialize on distinct spatial regions with- out competition.
+For each group Fg ∈RC/G×H×W (where C, H and W denote channels, height and width, respectively), a lightweight 3 × 3 convolution followed by sigmoid activation generates a focus map: ˆFg = Fg ⊙σ (Conv3 × 3(Fg)) (1) Where ⊙denotes element-wise multiplication.
+All focused groups are concatenated along the channel dimension to form the refined feature representation F ′ = [ ˆF1, ˆF2, . . . , ˆFG].
+By processing groups independently, each can specialize—one might attend to the ball, another to player positions.
+This multi- focus design improves robustness: if one region is occluded or blurred, others remain informative.
+Compared to transformer multi-head attention which requires expensive query-key-value computations, GFM achieves spatial selectivity through simple grouped convolutions, adding minimal overhead while en- abling simultaneous attention to multiple event-critical regions.
+To further demonstrate the spatial selectivity learned by GFM, we provide Grad-CAM–based heatmap visualizations in Fig- ure 3.
+These examples show how MFS attends to semantically meaningful regions across diverse event types.
+C.
+Multi-Scale Shift Module GSM has proven effective in PES tasks [1], [7], [8], per- forming gating-based temporal shifts inspired by TSM [20] and GST [22].
+However, its fixed adjacent-frame operation (t ± 1) limits access to broader temporal context.
+Analysis of event durations in the Tennis dataset reveals that 73% of events span 3–8 frames, beyond GSM’s receptive field.
+Events such as serves or shot preparation require this extended context for accurate recognition, motivating the need for multi-scale temporal access.
+MFS extends GSM by introducing learnable multi-scale temporal shifts, providing direct access to frames at varying distances (e.g., δ ∈{1, 2, 3}).
+Figure 4 illustrates Fig. 3.
+Grad-CAM heatmaps on Tennis and TTA.
+Row 1 (Group 1) and Row 2 (Group 2) attend to different event-critical regions—e.g., the two players in Tennis, and the table versus the ball in TTA—showing that grouped focusing produces complementary spatial attention. the architecture.
+Given feature maps X ∈RC×T ×H×W (where T denotes the temporal length), MFS applies gated temporal shifts at multiple distances.
+For each shift distance δ, a 3D convolutional gating layer processes a three-frame temporal window to generate left and right gates: (Gleft, Gright) = tanh(Conv3D(X)) (2) The feature map is split into two halves, each modulated by its gate and shifted temporally: ˆXleft = Roll(Xleft ⊙Gleft, −δ) (3) ˆXright = Roll(Xright ⊙Gright, +δ) (4) where ⊙denotes element-wise multiplication and δ is the temporal shift distance in frames.
+Zero padding maintains sequence length at boundaries.
+Shifted features are combined with a residual connection: ˆX = [ ˆXleft, ˆXright] + X (5) Outputs from different shift distances { ˆX(i)}N i=1 are combined through learnable weights, all of which are initialized to 1: ˆXfinal = N X i=1 wi · ˆX(i), where N X i=1 wi = 1, wi ≥0 (6) where {wi} are normalized via softmax.
+This allows the model to adaptively weight temporal scales—emphasizing nearby frames for rapid events (e.g., ball bounces at δ = 1) or distant frames for extended events (e.g., serves at δ = 3).
+Multi-scale shifts expand temporal context with minimal complexity, while learnable weights let the model adaptively select the most relevant scales for each event.
+Combined with GFM’s spatial focus, MFS attends to the right regions at the right times.
+Despite adding only 2.7 GFLOPs (6% overhead), it substantially enlarges the temporal receptive field compared to GSM.
+
+[page 4]
+Input Features 3D CNN  for gate map generation Right Shift Left Shift Concatenate (dim=C) Concatenate (dim=C) Stack (dim=0) Frame X Frame X Temporal shift (Δt = ±1) Frame X Temporal shift (Δt = ±4) Features 3D CNN Gate Map Gated Feature Weighting Layer Addition Residual Connection Multiscale Shift overview.
+A 3D CNN generates gate maps for different temporal shift ranges (e.g., ∆t = ±1, ±3).
+Features are shifted bidirectionally across multiple scales, gated, and fused through learnable weights, enabling adaptive capture of both short and long-term temporal dependencies.
+IV.
+EMPIRICAL STUDY A.
+Datasets We evaluate MFS on five fine-grained sports video datasets with frame-level annotations: Tennis [23] contains 3,345 clips from 28 matches (25–30 FPS) with 33,791 frame-accurate annotations across six event classes.
+Figure Skating (FS) [11] includes 11 broadcast videos (25 FPS) covering 371 short programs from international competitions (2010–2019), with 3,674 annotated events across four classes.
+Following prior work [7], [8], [11], we use the competition (FS-Comp) and performance (FS-Perf) splits.
+FineDiving [13] provides 3,000 clips with 7,010 events across four classes, converted to frame- level labels using the protocol of [1].
+Table Tennis Australia (TTA).
+We introduce the first PES benchmark for table tennis, addressing critical gaps in existing datasets.
+TTA contains 39 full-game videos (30 FPS, 1280×720 resolution) with 4,878 precisely annotated events across eight classes: serve, bounce, forehand, and backhand—each labeled separately for near and far table sides.
+The dataset is split into train/val/test sets with 3,759/598/521 events, ensuring diverse coverage across viewpoints and tournaments.
+Detailed annotation protocols are provided in Supp. §2.
+Unlike existing datasets captured from Window Size (Frames)    (25 fps   50 fr   2.0 s) Average Events per Window Event Density vs.
+Temporal Window Size Datasets TTA (Ours) FS Fine Diving Comparison of event density (average number of events) across varying temporal window sizes.
+TTA shows the highest event density across all ranges, reflecting its fine-grained and fast-paced nature. broadcast angles with professional equipment, TTA videos are recorded by sports analysts using handheld cameras during elite competitions (Paralympics, World Para Future).
+This realistic setup introduces frequent occlusions, motion blur, and dynamic viewpoints—conditions representative of practical deployment scenarios.
+Moreover, as shown in Figure 5, TTA exhibits significantly higher event density (7.73 events per 100 frames) compared to Tennis (3.81), FineDiving (2.34), and Figure Skating (1.47).
+This dense event distribution within narrow temporal windows demands fine-grained temporal modeling capabilities, making TTA a particularly challenging benchmark for evaluating precise event spotting methods.
+B.
+Evaluation and Implementation Details MFS is evaluated as a drop-in replacement for GSM using the E2E-Spot framework [1].
+Models are trained on 100-frame clips with AdamW [25] (lr=1 × 10−3, cosine decay, 3 warm- up epochs) for 50 epochs, batch size 8.
+RegNetY-200 [26] and ResNet-18 [27] serve as backbones.
+Performance is reported in mean Average Precision (mAP) across all classes under δ ∈{0, 1, 2}, where δ = 0 requires exact-frame matching and δ = 1, 2 allow ±1/ ± 2-frame tolerance.
+All experiments are conducted on a single NVIDIA L40S GPU.
+C.
+Comparison with State-of-the-Art We evaluate MFS against six PES models spanning two paradigms.
+The transformer-based category includes ASTRA [5] and ViT [24].
+The CNN-based category includes E2E- Spot [1], T-DEED [7], UGLF [8], and ASTRM [9].
+E2E-Spot and UGLF utilize GSM [10], while T-DEED employs GSF
+
+[page 5]
+TABLE I PERFORMANCE COMPARISON (MAP %) AT DIFFERENT TEMPORAL TOLERANCES (δ = 0, 1, 2) ACROSS FIVE FINE-GRAINED SPORTS VIDEO DATASETS.
+THE BEST RESULT IN EACH COLUMN IS SHOWN IN BOLD, AND OUR PROPOSED METHOD IS italicized.
+A ⋆MARKS THE BEST RESULT WITHIN EACH MODEL–BACKBONE GROUP.
+ALL MODELS ARE EVALUATED WITH A FIXED CLIP LENGTH OF 100 FRAMES.
+Model Temp FS Comp FS Perf FineDiving P (M) / GFLOPs δ=0 δ=1 δ=2 δ=0 δ=1 δ=2 δ=0 δ=1 δ=2 δ=0 δ=1 δ=2 δ=0 δ=1 δ=2 ASTRA [5] VIT [24] 92.89 / 3522 ASTRM [9] E2E-Spot [1] GSM E2E-Spot GSF 96.55⋆ E2E-Spot MFS 36.43⋆ 69.50⋆78.12⋆55.51⋆91.34⋆ 38.34⋆77.72⋆90.04⋆46.54⋆84.12⋆96.90⋆29.83⋆71.03⋆87.26⋆ GSM 33.32⋆ 97.15⋆ T-DEED [7] GSF 92.15⋆ 94.79⋆ 67.04⋆ MFS 60.77⋆72.50⋆52.76⋆90.68⋆ 39.06⋆75.55⋆ 44.66⋆82.41⋆ 26.88⋆ 84.60⋆ UGLF [8] GSM 97.16⋆ GSF 36.17 ⋆ MFS 64.82⋆74.84⋆53.10⋆90.98⋆ 39.66⋆78.86⋆91.13⋆46.59⋆82.64⋆96.12⋆29.59⋆67.21⋆85.34⋆ [21].
+For CNN-based methods, we evaluate both the original temporal module and MFS as a drop-in replacement.
+Standardized Evaluation Protocol.
+To rigorously eval- uate the effectiveness of the temporal mixing architectures in isolation, we standardized all methods to a RegNetY- 200 [26] backbone, a fixed 100-frame context window, and a standard cross-entropy loss schedule.
+This decouples the temporal module’s performance from auxiliary engineering factors (e.g., specialized loss functions or heavy backbones).
+Main Results and Efficiency.
+Table I presents results across five datasets and three temporal tolerances.
+Under the standardized evaluation protocol, MFS demonstrates broad superiority over existing temporal modules.
+Quantitatively, MFS achieves the best reported performance in 12 out of 15 dataset-tolerance combinations (columns).
+When compar- ing individual model-backbone configurations (e.g., MFS vs.
+GSM, MFS vs.
+GSF across all settings), MFS achieves the winning score in 36/45 direct comparisons.
+This dominance is particularly evident against lightweight baselines, where MFS improves over GSM by +4.09% mAP on Tennis (δ = 0) and +3.08% on TTA (δ = 1).
+Comparison against the heavy SOTA baseline ASTRM [9] further highlights the strength of MFS.
+While the standardized ASTRM achieves 55.31% mAP on Tennis (δ = 0), MFS matches this performance (55.51%) without requiring the heavy computational overhead.
+Specifically, ASTRM requires 67.24 GFLOPs, whereas MFS operates at only 45.06 GFLOPs.
+Thus, MFS delivers SOTA- level accuracy with 33% fewer FLOPs (1.5× efficiency gain), proving that complex temporal mechanisms are not required for top-tier performance when efficient multi-scale shifting is applied.
+Robustness on Challenging Data.
+While MFS matches ASTRM on standard benchmarks, it demonstrates superior robustness on the proposed TTA dataset, which features higher event density and frequent occlusions.
+On TTA (δ = 1), MFS achieves 69.50%, significantly outperforming the standardized ASTRM (64.86%) by +4.64%.
+This indicates that MFS’s combination of multi-scale shifting and grouped focusing han- dles rapid, complex actions more effectively than the heavier baseline when computational resources are equalized.
+Generalization Across Architectures.
+To assess versatility, we test MFS with ResNet-18 [27] (results in Supp. §3.1).
+MFS provides consistent gains for E2E-Spot (14/15 comparisons) and UGLF (13/15 comparisons), confirming it is a highly effective upgrade for standard CNN backbones.
+D.
+Ablation Study We perform ablations on the TTA dataset to validate the contributions of multi-scale temporal shifting and grouped spatial focusing.
+Component Analysis.
+Table II (top) isolates each component.
+Multi-scale shifting alone provides unstable gains, as larger temporal windows introduce background noise.
+Grouped focus alone improves spatial selectivity but offers limited benefit without extended temporal context.
+Combining both yields the strongest improvement (+3.08 mAP), con- firming that spatial grouping identifies salient regions while multi-scale shifts propagate them effectively over time.
+Hy- perparameter Effects.
+Table II (middle) varies group count G and temporal distances.
+Increasing from G = 1 to G = 2 gives the largest gain, enabling specialization on different spatial regions, while G > 2 over-fragments channels and hurts stability.
+For temporal ranges, {1, 2, 3} offers the best balance between short-term precision and extended context; shorter ranges reduce receptive field, while overly large ones introduce irrelevant frames.
+We adopt G = 2 and distances {1, 2, 3} as defaults.
+Clip Length.
+Following [1], we test clip lengths L ∈{50, 100, 150, 200}.
+As shown in Table II (bottom), L = 100 performs best—short clips lack context, while longer clips add cost without accuracy gains.
+All main results use L = 100.
+V.
+CONCLUSION We introduced MFS, a lightweight enhancement of GSM that expands temporal context and adds spatial selectivity through multi-scale shifts and grouped focusing.
+With only 1.3% additional parameters, MFS consistently improves mAP across five PES benchmarks while remaining highly efficient.
+
+[page 6]
+TABLE II ABLATION STUDY ON ATTENTION HEAD COUNT, TEMPORAL DISTANCE RANGE, AND CLIP LENGTH USING THE MFS MODULE ON THE TTA DATASET.
+ALL RESULTS ARE REPORTED IN MAP (%), DEFAULT CLIP LENGTH=100, BEST RESULT IS IN BOLD.
+Setting Value δ = 1 δ = 2 P(M) / GFLOPs Multi-Scale Shift E2E-GSM Distance [1,2] Distance [1,2,3] Distance [1–4] Group Focused Module E2E-GSM Groups Groups Groups Varying Number of Groups (Distance = [1,2,3]) Groups Groups Groups Groups Varying Temporal Shift Distance (Groups = 2) Distance [1,2] Distance [1,2,3] Distance [1–4] Distance [1–5] Distance [1–6] Varying Clip Length with Distance=[1,2,3], Groups=2 Length Length Length Length We also presented the TTA dataset, the first table-tennis PES benchmark with realistic handheld recordings and high event density.
+Overall, our results show that targeted improvements to lightweight modules can match or surpass more complex alternatives while maintaining practicality for real-world de- ployment.
+REFERENCES [1] James Hong, Haotian Zhang, Micha¨el Gharbi, Matthew Fisher, and Kayvon Fatahalian, “Spotting temporally precise, fine-grained events in video,” in European Conference on Computer Vision.
+Springer, 2022, pp. 33–51.
+[2] Mengqi Cao, Min Yang, Guozhen Zhang, Xiaotian Li, Yilu Wu, Gangshan Wu, and Limin Wang, “Spotformer: A transformer-based framework for precise soccer action spotting,” in 2022 IEEE 24th International Workshop on Multimedia Signal Processing (MMSP).
+IEEE, 2022, pp. 1–6.
+[3] He Zhu, Junwei Liang, Chengzhi Lin, Jun Zhang, and Jianming Hu, “A transformer-based system for action spotting in soccer videos,” in Proceedings of the 5th international acm workshop on multimedia content analysis in sports, 2022, pp. 103–109.
+[4] Bastien Vanderplaetse and Stephane Dupont, “Improved soccer action spotting using both audio and video streams,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops, 2020, pp. 896–897.
+[5] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clap´es, “Astra: An action spotting transformer for soccer videos,” in Proceedings of the 6th International Workshop on Multimedia Content Analysis in Sports, 2023, pp. 93–102.
+[6] Julien Denize, Mykola Liashuha, Jaonary Rabarisoa, Astrid Orcesi, and Romain H´erault, “Comedian: Self-supervised learning and knowledge distillation for action spotting using transformers,” in Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision, [7] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clap´es, “T-deed: Temporal-discriminability enhancer encoder-decoder for pre- cise event spotting in sports videos,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2024, pp. 3410–3419.
+[8] Kim Hoang Tran, Phuc Vuong Do, Ngoc Quoc Ly, and Ngan Le, “Unifying global and local scene entities modelling for precise action spotting,” in 2024 International Joint Conference on Neural Networks (IJCNN).
+IEEE, 2024, pp. 1–8.
+[9] Sanchayan Santra, Vishal Chudasama, Pankaj Wasnik, and Vineeth N Balasubramanian, “Precise event spotting in sports videos: Solving long- range dependency and class imbalance,” in Proceedings of the Computer Vision and Pattern Recognition Conference, 2025, pp. 3163–3172.
+[10] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz, “Gate-shift networks for video action recognition,” in Proceedings of the IEEE/CVF [11] James Hong, Matthew Fisher, Micha¨el Gharbi, and Kayvon Fatahalian, “Video pose distillation for few-shot, fine-grained sports action recog- nition,” in Proceedings of the IEEE/CVF International Conference on Computer Vision, 2021, pp. 9254–9263.
+[12] Silvio Giancola, Mohieddine Amine, Tarek Dghaily, and Bernard Ghanem, “Soccernet: A scalable dataset for action spotting in soccer videos,” in Proceedings of the IEEE conference on computer vision and pattern recognition workshops, 2018, pp. 1711–1721.
+[13] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu, “Finediving: A fine-grained dataset for procedure-aware action quality assessment,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2022, pp. 2949–2958.
+[14] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and Kaiming He, “Slowfast networks for video recognition,” in Proceedings of the IEEE/CVF international conference on computer vision, 2019, pp. 6202– [15] Limin Wang, Yuanjun Xiong, Zhe Wang, Yu Qiao, Dahua Lin, Xiaoou Tang, and Luc Van Gool, “Temporal segment networks: Towards good practices for deep action recognition,” in European conference on computer vision.
+Springer, 2016, pp. 20–36.
+[16] Dan Kondratyuk, Liangzhe Yuan, Yandong Li, Li Zhang, Mingxing Tan, Matthew Brown, and Boqing Gong, “Movinets: Mobile video networks for efficient video recognition,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2021, pp. 16020–16030.
+[17] Hao Xu, Arbind Agrahari Baniya, Sam Well, Mohamed Reda Bouad- jenek, Richard Dazeley, and Sunil Aryal, “Action spotting and precise event detection in sports: Datasets, methods, and challenges,” arXiv preprint arXiv:2505.03991, 2025.
+[18] Tianwei Lin, Xu Zhao, Haisheng Su, Chongjing Wang, and Ming Yang, “Bsn: Boundary sensitive network for temporal action proposal generation,” in Proceedings of the European conference on computer vision (ECCV), 2018, pp. 3–19.
+[19] Haisheng Su, Weihao Gan, Wei Wu, Yu Qiao, and Junjie Yan, “Bsn++: Complementary boundary regressor with scale-balanced relation mod- eling for temporal action proposal generation,” in Proceedings of the AAAI conference on artificial intelligence, 2021, vol. 35, pp. 2602–2610.
+[20] Ji Lin, Chuang Gan, and Song Han, “Tsm: Temporal shift module for efficient video understanding,” in Proceedings of the IEEE/CVF international conference on computer vision, 2019, pp. 7083–7093.
+[21] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz, “Gate- shift-fuse for video action recognition,” IEEE Transactions on Pattern Analysis and Machine Intelligence, vol. 45, no. 9, pp. 10913–10928, [22] Chenxu Luo and Alan L Yuille, “Grouped spatial-temporal aggregation for efficient action recognition,” in Proceedings of the IEEE/CVF international conference on computer vision, 2019, pp. 5512–5521.
+[23] Haotian Zhang, Cristobal Sciutto, Maneesh Agrawala, and Kayvon Fatahalian, “Vid2player: Controllable video sprites that behave and
+
+[page 7]
+appear like professional tennis players,” ACM Transactions on Graphics (TOG), vol. 40, no. 3, pp. 1–16, 2021.
+[24] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weis- senborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al., “An image is worth 16x16 words: Transformers for image recognition at scale,” arXiv preprint arXiv:2010.11929, 2020.
+[25] Ilya Loshchilov and Frank Hutter, “Decoupled weight decay regulariza- tion,” arXiv preprint arXiv:1711.05101, 2017.
+[26] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Doll´ar, “Designing network design spaces,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, [27] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun, “Deep residual learning for image recognition,” in Proceedings of the IEEE

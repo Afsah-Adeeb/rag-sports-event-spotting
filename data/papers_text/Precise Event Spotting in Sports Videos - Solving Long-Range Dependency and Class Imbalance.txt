@@ -1,0 +1,339 @@
+[page 1]
+Precise Event Spotting in Sports Videos: Solving Long-Range Dependency and Class Imbalance Sanchayan Santra1 Vishal Chudasama1 Pankaj Wasnik1 Vineeth N Balasubramanian2 1Sony Research India 2Indian Institute of Technology Hyderabad {sanchayan.santra, vishal.chudasama1, pankaj.wasnik}@sony.com, vineethnb@cse.iith.ac.in Abstract Precise Event Spotting (PES) aims to identify events and their class from long, untrimmed videos, particularly in sports.
+The main objective of PES is to detect the event at the exact moment it occurs.
+Existing methods mainly rely on features from a large pre-trained network, which may not be ideal for the task.
+Furthermore, these methods overlook the issue of imbalanced event class distribution present in the data, negatively impacting performance in challenging sce- narios.
+This paper demonstrates that an appropriately de- signed network, trained end-to-end, can outperform state- of-the-art (SOTA) methods.
+Particularly, we propose a net- work with a convolutional spatial-temporal feature extrac- tor enhanced with our proposed Adaptive Spatio-Temporal Refinement Module (ASTRM) and a long-range temporal module.
+The ASTRM enhances the features with spatio- temporal information.
+Meanwhile, the long-range tempo- ral module helps extract global context from the data by modeling long-range dependencies.
+To address the class imbalance issue, we introduce the Soft Instance Contrastive (SoftIC) loss that promotes feature compactness and class separation.
+Extensive experiments show that the proposed method is efficient and outperforms the SOTA methods, specifically in more challenging settings. 1.
+Introduction Event spotting methods locate the occurrence of events in long, untrimmed videos.
+An event is typically defined by a starting and ending time, but this may not always be feasi- ble, particularly in the context of sports, where an event is a specific occurrence that occurs at a particular point in time, as dictated by the game’s rules.
+For instance, a “Goal” in soccer is scored when the ball crosses the goal line, while a “Boundary” in cricket is made when the ball touches the boundary line.
+This is termed as Precise Event spotting (PES) and PES methods [4, 12] aim to predict an event at the exact frame it occurs (e.g., goal, boundary).
+This is highly Figure 1.
+Temporal dependency of “Shots on target” event: The event is marked when the shot is taken, but whether the shot is at the target can only be known by looking at future frames.
+Here the shot is on target because the ball is saved by the goal keeper.
+Figure 2.
+Per class score analysis on a few classes of SoccerNet V2 dataset in tight setting.
+The proposed method outperforms state-of-the-art (SOTA) methods especially for classes with less number of samples. relevant in generating summaries of the game, finding spe- cific events, and editing long matches.
+However, it is a chal- lenging task since it requires a high-level understanding of the game and its key events.
+Existing PES methods mainly face two challenges.
+First, the long-range temporal dependency that arises due to na- ture of events.
+To predict the event frames observing just the nearby frames does not suffice, several other potentially arXiv:2503.00147v1  [cs.CV]  28 Feb 2025
+
+[page 2]
+distant frames need to be observed to correctly predict the event.
+For example, “Shots on target” and “Shots off tar- get” events of Soccer game are marked when the shot is taken, but the actual class is decided based on whether the ball went towards the goal or away from it (see Figure 1).
+This can be only detected if long-range dependencies are captured correctly.
+Second, there is an inherent imbalance in the number of samples among the classes (see Figure 2).
+Some events naturally occur more frequently than others.
+For example, in a soccer game, a “Ball out of play” is likely to occur more than a “Yellow card”; a “Red-card” and “Yellow→Red card” are expected to occur even less often.
+Therefore, the same trend can be observed in datasets cre- ated using broadcast videos.
+Due to these issues, existing event spotting methods [5, 12] perform poorly in underrep- resented classes such as “Red card” & “Yellow→Red card.” This can be visualized in Figure 2.
+Hence, handling these issues and accurately performing PES is an active area of research.
+To address the long-range temporal dependency issue, recent SOTA methods [22, 27] prefer to use the feature ex- tracted using the pre-trained network of [32].
+These meth- ods also use transformer-based temporal modules due to their better sequence modeling capability with a global con- text.
+However, as stated in [16, 29], transformers also en- counter issues with long videos.
+Self-attention struggles to learn appropriate weights for long videos due to the increase in the size of the weight matrix with the number of frames being processed.
+On the other hand, E2E-Spot [12] pro- posed an end-to-end trainable feature extractor and a GRU- based module for temporal modeling.
+Recently proposed T-DEED [28] improves upon the performance of E2E-Spot via temporal-discriminability enhancing encoder decoder (T-DEED) module.
+In our proposed method, we handle this issue by improving the extracted features with our proposed Adaptive Spatio-Temporal Refinement Module (ASTRM) and GRU-based temporal module.
+The class imbalance issue has not received the sufficient attention in the literature of PES, resulting in lower per- formance on real-world datasets.
+The recent method AS- TRA [27] is one of the few attempts to address this problem through a modified ”mixup” augmentation.
+While there are standard machine learning techniques available, such as fo- cal loss [14], these methods are not suitable for every task, as demonstrated in this paper.
+In response to this challenge, we introduce a novel loss function called Soft Instance Con- trastive (SoftIC) loss, which aims to alleviate class imbal- ance by promoting compact feature representations and en- hancing class separability.
+Finally, this paper primarily aims to address these is- sues and improve the accuracy of PES.
+Here, we propose an end-to-end trainable network with a CNN-based spatio- temporal feature extractor and a GRU-based long-term tem- poral module.
+The spatio-temporal feature extractor in- cludes our proposed Adaptive Spatio-Temporal Refinement Module (ASTRM) to augment the features with spatial and temporal information.
+We chose to train the model end- to-end because it has been shown to perform better that a pre-trained frozen feature extractor [15, 24].
+We have also employed the Adaptive Sharpness-Aware Minimiza- tion (ASAM) [13] to enable the trained model to perform well on unseen data.
+Through experiments, we demonstrate that the proposed framework obtains superior performance compared to SOTA methods, especially in very tight set- tings where long-range dependency and class imbalance is- sues affect a lot (see Figure 2).
+Our key contributions can be summarized as follows: • We propose an end-to-end framework using CNN-based spatio-temporal feature extractor and GRU-based tempo- ral network to achieve precise event spotting while ad- dress long-range dependency and class imbalance issues. • We introduce ASTRM, which enhances the features with spatial and temporal information. • We also introduce SoftIC loss to enforce compact features and improve class separability, addressing the class im- balance issue. 2.
+Related Works The concept of sports event spotting first appeared in Soc- cerNet [8] with the aim of identifying specific events or actions at exact locations.
+The work by [12] expanded the event spotting task to precise event spotting (PES), introducing significant differences in the necessary pre- cision of predictions.
+PES is constrained to the toler- ance of few frames only.
+Recently, several PES methods [5, 12, 22, 25, 27, 28, 32] have been proposed that focus on various sports videos.
+E2E-Spot [12] employed a CNN- based backbone with a Gated Shift Module (GSM) [23] for temporal modeling and a GRU [3] for producing per-frame prediction.
+Even though it is effective on the Tennis and Figure Skating datasets, it struggles on the more challeng- ing SoccerNet V2 dataset [4] due to its simplistic temporal information extraction scheme using GSM.
+Recently, T-DEED [28] proposed improvement on top of E2E-Spot [12] to address issues arising from tight toler- ances in fast-paced sporting events and achieved SOTA per- formance on the Figure Skating and Figure Diving datasets.
+The method of [32] revamped the feature extraction using a group of five networks pre-trained on Kinetics-400 and fine- tuned on SoccerNet V2.
+Several other methods use the fea- tures extracted by this method instead of raw video frames.
+For instance, Soares et al.
+[22] utilized these features and developed a U-Net- and transformer-based trunk for making predictions.
+ASTRA [27] utilizes the same features but also incorporates audio features for complementary information.
+In contrast, COMEDIAN [5] operates in 3 stages to train
+
+[page 3]
+their network: 1) training only the spatial part; 2) training the spatial and temporal parts using knowledge distillation; 3) final tuning to optimize the classification scores.
+Re- cently, UGLF [25] proposed a unifying global local (UGL) module to disentangle the scene content into global features and locally relevant scene entities features in conjunction with a Vision-Language model.
+The above-mentioned methods had mainly addressed the long-range temporal dependency issue by utilizing pre- trained features and transformers.
+They have not adapted their feature extractors to capture both spatial and tempo- ral information effectively.
+Additionally, these methods did not specifically deal with the class imbalance, which led to poor performance on underrepresented classes.
+In our framework, we proposed ASTRM, which helps the feature extractor to augment the features with relevant spatial and temporal information.
+Furthermore, we introduce SoftIC loss to address the class imbalance issue and employ the ASAM to properly train the proposed framework.
+With these advancements, the proposed framework outperforms existing event-spotting methods on various sports datasets, particularly in settings with tighter tolerances. 3.
+Proposed Methodology This section presents our methodology in detail, starting with the problem statement and then presenting the subse- quent details as follows. 3.1.
+Problem Statement The task of event spotting is defined as follows: Given a video with N frames x1, x2, . . . , xN and a set of pos- sible events {c1, . . . , cK}, the goal is to predict frames where an event occurs along with it’s class: (t, ˆyt) ∈ N × {c1, . . . , cK}.
+A prediction is deemed correct if it falls within δ frames of the actual occurrence and accu- rately identifies the event class.
+Since it is not possible to process the entire video at once, the processing is done in chunks of a predefined size.
+Each chunk, represented as X ∈RC×Ts×H×W , consists of Ts frames.
+We compute predictions for each frame, represented as Y ∈RTs×K, where K is the number of classes.
+As the video is processed in segments, the predictions from each chunk of Ts frames are aggregated and refined with a non-maximal suppression to get the final sparse prediction. 3.2.
+Methodology Figure 3 shows the network design of our proposed frame- work, taking a set of input frames and classifying whether each frame contains an event frame or not.
+The frame- work comprises three main parts: the spatio-temporal fea- ture extractor, the temporal block, and the classifier.
+In the spatio-temporal feature extractor, we have selected the RegNetY [19] as the feature extractor due to its efficiency, surpassing commonly used networks like ResNet.
+This network is further enhanced with our proposed Adaptive Sptio-Temporal Refinement Module (ASTRM).
+This mod- ule is integrated into each Bottleneck block, refines the fea- tures by incorporating both spatial and temporal informa- tion.
+Both spatial and temporal information is necessary to properly identify events as validated by the experiments.
+The refined features are then passed to the temporal block, which enriches them with long-term temporal information.
+The long-term information is necessary because in many situations, information from temporally distant frames is es- sential to accurately classify a frame.
+The spatio-temporal feature extractor alone can not accomplish this task.
+Finally, the feature maps are forwarded to the classifier, a simple lin- ear layer that outputs the classification scores.
+Furthermore, we introduce the Soft Instance Contrastive (SoftIC) loss to effectively manage the imbalance among the class samples.
+This loss function operates by compacting the features and enhancing their separability.
+The important modules of the proposed framework are detailed in subsequent subsections. 3.2.1 Adaptive Spatio-Temporal Refinement Module (ASTRM): The module enhances the extracted features by incorporat- ing both spatial and temporal information.
+It composed of three blocks: Local Spatial, Local Temporal, and Global Temporal.
+We include the Local Spatial block because lo- cal spatial features also offer important cues about temporal information.
+Relying solely on temporal information can overlook these valuable insights.
+The spatial component is inspired by [26], while the temporal aspect is adapted from [17].
+The refinement is done as follows: Ψ(x) = ((x ⊙(1 + Fs(x))) ⊙(1 + Ft(x))) ∗Gt(x) (1) where x is the input feature to be enhanced.
+Fs, Ft, and Gt denote the operation corresponding to the local spatial, lo- cal temporal, and global temporal block, respectively. ⊙de- notes Hadamard Product, while ∗denotes convolution op- eration.
+To elaborate, the input feature is weighted with information from the local spatial block and a residual con- nection, resulting in features enhanced with local spatial in- formation.
+These enhanced features are further refined with local temporal information.
+Finally, spatially and tempo- rally enhanced local features are then convolved with the kernel obtained from the global temporal block to make local enhancements using “global” information.
+This dy- namic kernel approach simplifies the network while main- taining effectiveness.
+Please refer to Fig. 3 for a visual rep- resentation.
+In the Local Spatial block, the input features are pooled using Max (i.e., fMaxP ool) and Average (i.e., fAvgP ool) pooling operations along the channel dimension.
+The
+
+[page 4]
+Temporal Block Classification  Loss Soft Instance Contrastive Loss Classifier Scores Key Event Stage 1 Bottleneck 2 Stage 2 Stage 3 Spetio-Temporal Feature Extractor Bottleneck 3 Bottleneck 1 Bottleneck 4 Bottleneck 7 Stage 4 Bottleneck 8 Bottleneck 14 Conv 3x3 ASTRM Conv 3x3 Squeeze Excitation Conv 3x3 CxTxHxW Max Pooling Avg Pooling 1xTxHxW 1xTxHxW C Conv 7x7 2xTxHxW 1xTxHxW Sigmoid + Conv3D 1x1x1 Sigmoid Conv3D 3x1x1 BN, ReLU CxTxHxW C/bxTxHxW C/bxTxHxW CxTxHxW + FC Softmax GAP FC CxTxHxW CxT Cx2T CxK * CxTxHxW CxTxHxW CxTxHxW Local Spatial Local Temporal Global Temporal Avg Pooling Bi-Directional GRU ASTRM: Adaptive Spatio Temporal Refinement Module GRU: Gated Recurrent Unit GAP: Global Average Pooling FC: Fully Connected BN: Batch Normalization FC Video Chunk: Input Frames Figure 3.
+Network design of the proposed framework.
+The framework composed of a spatio-temporal feature extractor and a temporal block for capturing long-range dependency before the classifier.
+In each bottleneck block we add ASTRM after the first conv.
+ASTRM further enhances the features with local spatial, local temporal and global temporal information.
+The network is trained with SoftIC loss in addition to the classification loss to handle class imbalance. pooled features are then concatenated and convolved with a 7 × 7 filter (i.e., f 7×7 conv).
+The pooling operation on the chan- nel axis helps to emphasize informative regions and the sub- sequent convolution operation filters out non-informative portions from the features.
+Finally, the output is passed through a Sigmoid function (i.e., σ(·)) to obtain the “spa- tial” feature weights (i.e., Fs(x)) as follow: Fs(x) = σ  f 7×7 conv   fAvgP ool(x); fMaxP ool(x)  .
+(2) In the Local Temporal block, we use 3D convolution op- erations, namely f 1×1×1 conv and f 3×1×1 conv , followed by the Sig- moid function, σ(·), with a focus on the temporal dimen- sion.
+Spatially pooled features are not used in this block be- cause they do not account for the different temporal changes at various spatial locations.
+The locally temporal enhanced features are defined as below: Ft(x) = σ  f 1×1×1 conv  BN  ReLU  f 3×1×1 conv  x  .
+(3) In the Global Temporal block, we adaptively create con- volution kernels to improve the feature maps by considering temporal information across frames from all input frames.
+First, the features are pooled in the spatial dimension using a global average pooling operation (i.e., fGAP ), and then fully connected layers (i.e., fF C) are used to compute the kernel with a global view of the data.
+Mathematically the kernel is formulated as below: Gt(x) = σ  fF C  fF C  fGAP  x  .
+(4) 3.2.2 Temporal Block: The spatio-temporal feature extraction stage computes fea- tures containing local spatial, local temporal, and location- independent temporal information.
+Since we are interested in finding the temporal location of the events, we aggregate the features in the spatial dimension with average pooling before extracting long-range temporal information.
+We use temporal block because the feature extractor alone is not capable enough to capture the required long-range depen- dency, although it may help to some extent.
+As motivated in the introduction section, we need to capture long-range temporal information to accurately predict events with pre- cision.
+For this task, we selected Bidirectional GRU (Bi- GRU) as the temporal block because it effectively models sequences without overfitting the input data.
+The Bi-GRU is capable of quickly adapting to the data while maintain- ing its generalizability.
+Further experiments confirm this, demonstrating that the Bi-GRU performs well compared to more complex temporal blocks. 3.2.3 Soft Instance Contrastive (SoftIC) loss): To address the class imbalance issue, we introduce a novel SoftIC loss which aims to make the features more compact and increase their separability.
+It is inspired by the Instance Contrastive Loss (IC Loss) [9], and is designed to work with mixup augmentation [30].
+The goal of IC Loss is to en-
+
+[page 5]
+hance the separation among the learned features, thereby improving classification scores when dealing with imbal- anced data.
+For a batch of N features computed from the input, the IC Loss is calculated as described in [9].
+LIC = 1 N N X i=1 L(zi), (5) L(zi) = 1 |M(ci)| X zj∈M(ci) log exp(zi · zj/τ) P zk∈A(ci) exp(zi · zk/τ), (6) where ci is the label of i-th sample, τ is a temperature hyper-parameter, M(ci) denotes the memory bank of class ci and A(ci) = M\M(ci).
+During training, we use mixup augmentation [30] to reg- ularize the model and improve its generalization.
+In this, two samples (and their labels) are combined in a convex manner to create a new sample (and its label) as follows. ˜x = λxi + (1 −λ)xj, (7) ˜y = λyi + (1 −λ)yj, (8) where xi and xj are two samples from the training data, and yi and yj are are their corresponding one-hot labels.
+The parameter λ takes value in the rage [0, 1].
+Consequently, the label (˜y) will not be in one-hot format; instead, it will reflect weighted contributions from each class.
+ICLoss assumes that each sample has a single label.
+However, this assumption does not hold true when using mixup augmentation.
+To account for the weight associated with each class in the label, we define Soft IC Loss as fol- lows: LSIC = P (zi,wij),wij̸=0 LSIC(zi, wij) P (zi,wij),wij̸=0 1 , (9) LSIC(zi, ω) = 1 ω|M(ci)|× X (zj,wj)∈M(ci) log exp(zi · wjzj/τ) P (zk,wk)∈A(ci) exp(zi · wkzk/τ).
+(10) where, wij is the weight associated with the label of class ci for sample zi.
+Additionally in the memory bank M(ci) we store the corresponding class weights along with the fea- tures. 3.3.
+Training Strategy The proposed framework is trained end-to-end way using a combination of two loss functions: Binary Cross En- tropy loss (LBCE) as the standard classification loss and the proposed SoftIC loss (LSIC).
+The overall loss function (Lfinal) can be expressed as below: Lfinal(·) = LBCE + λSIC · LSIC.
+(11) Here, λSIC denote the weighting constant that adjust the contributions of different loss functions.
+With the total loss, proposed network is trained using the AdamW [18] optimizer with, Adaptive Sharpness-Aware Minimization (ASAM) [13].
+Utilizing advanced optimization techniques can signifi- cantly impact the performance of the trained model, yet not much focus is given to this aspect.
+In [21], the authors uti- lized the Sharpness-Aware Minimization (SAM) [7] with the Adam optimizer, which significantly impacted the final scores.
+SAM is a technique that considers the “sharpness” of the loss manifold in each gradient descent step, resulting in improved generalization.
+In SAM, the sharpness is com- puted from a fixed-size neighborhood of the current location in the loss manifold.
+However, the fixed-size neighborhood is not always ideal for sharpness computation.
+Adaptive SAM (ASAM) [13] proposed a size-varying neighborhood based on the scale to improve upon it.
+Taking a cue from this, we propose to utilize ASAM with AdamW optimizer to optimize our proposed framework.
+Through ablation analy- sis, we validate the effectiveness of ASAM in boosting the performance of the proposed framework. 4.
+Experimental Analysis This section provides detailed information about the imple- mentation, datasets, followed by the evaluation and ablation study. 4.1.
+Implementation Details We choose RegNetY200 initialized with pre-trained Ima- geNet weights as backbone in spatio-temporal feature ex- tractor.
+The model was trained using ASAM [13] with AdamW [18] as the base optimizer with ρ = 2.
+A co- sine annealing learning rate scheduler was employed with a warm-up of 3 epochs and an initial learning rate of 1e-5 during the warm-up.
+For the SoftIC loss, a feature dimen- sion of 128 and a memory bank size of 256 were used, with a loss weight (i.e., λSIC) of 0.001.
+Mixup [30] augmenta- tion was applied to the training samples with a mixing factor of α = 0.1.
+Additionally, random horizontal flips, random Gaussian blur, and random adjustments to brightness, con- trast, and saturation-based augmentations were used in the training process.
+The proposed method is implemented in PyTorch and trained on 4 A100 GPUs with a batch size of 2 on each GPU.
+At a time, 128 frames were processed, con- stituting a single sample (clip).
+During training, clips were uniformly sampled from videos, while during evaluation, a sliding window with half overlap was utilized to extract the samples.
+
+[page 6]
+To validate the efficacy of the proposed method, we con- ducted experiments using event spotting datasets outlined in [12] such as Tennis [31], Figure Skating (FS) [11], Fine Gym and the SoccerNet V2 [4] action spotting dataset.
+These datasets are described in the supplementary material. 4.2.
+Evaluation Metric Description Like previous works, we calculate the average precision (AP) within a specified tolerance range, denoted as δ.
+The AP is then calculated for each event class to calculate the mean average precision (mAP) with the specified δ value as an evaluation metric.
+The δ is defined based on the respec- tive datasets.
+For the Tennis and Figure Skating datasets, which have very strict evaluation criteria, we report the re- sults with δ = 0, 1, and 2.
+The SoccerNet V2 dataset, which has relaxed evaluation criteria, define two metrics: tight-mAP and loose-mAP, with δ = 1 −4 seconds and δ = 5 −60 seconds, respectively.
+Although the metrics are less strict compared to others, the SoccerNet V2 dataset is more challenging, having a more stringent metric would make the task even harder. 4.3.
+Baseline Methods For the SoccerNet V2 [4] dataset, we compared exist- ing SOTA methods proposed in conjunction with the Soc- cerNet Action Spotting challenge.
+Some of the results are taken from the 2021 challenge leaderboard, including Baidu (TF) [32], and SpotFormer [2].
+We have also com- pared the results with CNN-based SOTA methods like E2E- Spot [12], T-DEED [28], UGLF [25] and transformer-base SOTA methods like Spivak [21], ASTRA [27], and COME- DIAN [5].
+The results were generated using the checkpoints provided by the respective authors whenever possible.
+For the Tennis and Figure Skating dataset, we com- pared our method with the baseline method E2E-Spot [12].
+We also included the results of some best-performing pre- trained and fine-tuned variants as defined in [12], namely TSP [1] + MS-TCN [6], TSP [1] + ASFormer [29], VC-Spot [12], and 2D-VDP [10] + MS-TCN [6].
+We have also com- pared the result with recent state-of-the-art T-DEED [28] method.
+Unless otherwise stated, the results are generated mainly from the checkpoint provided by the authors. 4.4.
+Result Analysis on Various Sports Datasets This section compares the results obtained by our proposed method with existing SOTA methods on SoccerNet V2, Tennis, Figure Skating & FineGym datasets.
+SoccerNet V2: Table 1 presents a comparison between the existing SOTA methods and the proposed approach on the SoccerNet V2 testing dataset.
+It is evident from the results that the proposed method has achieved notably strong performance in both tight and loose settings.
+The scores demonstrate significant improvement compared to Table 1.
+Result Comparison on SoccerNet-V2 datasets in terms of mAP tight and loose settings.
+Here, the best-performing measures are highlighted with bold font and second best-performing is high- lighted with underline font. * result obtained from the challenge leaderboard of 2021. ** indicate that the GFLOPs value is calcu- lated from the temporal network only without feature extractors. † indicate result generated from the author provided checkpoint. ‡ indicate results obtained from official repo.
+Model Params (M) GFLOPs Tight Loose Baidu (TF) [32] — — 47.05∗ 73.77∗ SpotFormer [2] — — 60.90 76.10 E2E-Spot (RegNet-Y 200MF) [12] 4.46 39.61 61.19 73.25 E2E-Spot (RegNet-Y 800MF) [12] 12.64 151.40 61.82 74.05 Spivak [21] 17.46 461.89 65.10 78.50 ASTRA [27] 44.33 8.83∗∗ 66.63 78.14 T-DEED (RegNet-Y 200MF) [28] 16.36 21.96 39.43‡ 52.93‡ T-DEED (RegNet-Y 800MF) [28] 46.22 60.25 21.57‡ 30.49‡ UGLF [25] 4.46 39.61 63.51 73.98‡ COMEDIAN (ViSwin-T) [5] 70.12 222.76 71.33† 77.07† Proposed 6.46 60.25 73.74 79.11 both RegNet-Y 200MF and 800MF of E2E-Spot, despite utilizing a similar framework.
+Additionally, there is a sub- stantial improvement in the tight setting as compared to Baidu, Spivak and ASTRA methods.
+These methods em- ploy a pre-trained frozen larger backbone for feature ex- traction and transformer-based long-term temporal mod- ules.
+COMEDIAN model utilized a transformer network to achieve SOTA result in tight setting.
+However, the proposed method outperforms these methods without re- quiring a larger network.
+Notably, the propose model achieves 2.41% improvement in tight setting than COME- DIAN model while having significantly less parameters and FLOPs.
+Tennis, Figure Skating & FineGym: Table 2 shows the results for Tennis, Figure Skating settings, i.e., FS-Comp and FS-Perf, and FineGym with δ = 0, 1 and 2.
+In this case too, the proposed method outperforms existing meth- ods with a noticeable improvement.
+For instance, in case of δ = 0, the proposed method achieves 15.67%, 8.64%, 8.49% and 12.55% improvements over the best-performing E2E-Spot (RegNet-Y 200MF) and T-DEED (RegNet-Y 200MF) methods in Tennis, FS-Comp & FS-Perf and Fin- eGym datasets, respectively.
+Similarly, for δ = 1 case, the proposed method outperforms the previous best-performing T-DEED variants RegNet-Y 200MF and RegNet-Y 800MF by 1.52% & 1.4% improvement on FS-Comp & FS-Perf datasets, respectively.
+Additionally, we present the per-class score comparison on Tennis & Figure Skating datasets in Figure 4.
+Here, it can be seen that the performance of the proposed method is not just good for a single class; it has performed consistently well across all the classes with sig- nificant margin.
+
+[page 7]
+Table 2.
+Result Comparison on Tennis, FS-Comp, FS-Perf and FinGym datasets in terms of mAP for different delta values.
+Here, the best-performing measures are highlighted with bold font and second best-performing is highlighted with underline font. * indicate result generated using provided checkpoints.
+Model Tennis FS-Comp FS-Perf FineGym δ = 0 δ = 1 δ = 2 δ = 0 δ = 1 δ = 2 δ = 0 δ = 1 δ = 2 δ = 0 δ = 1 δ = 2 TSP [1] + MS-TCN [6] — 90.90 95.10 — 72.40 87.80 — 76.80 89.90 — 40.50 58.50 TSP [1] + ASFormer [29] — 89.80 95.50 — 77.70 94.10 — 80.20 94.50 — 38.80 57.60 2D-VDP [10] + MS-TCN [6] — — — — 83.50 96.20 — 85.20 96.40 — — — VC-Spot (RegNet-Y 200MF) [12] — 92.40 96.00 — 61.80 75.50 — 56.20 75.30 — 18.70 28.60 E2E-Spot (RegNet-Y 200MF) [12] 45.34* 96.10 97.70 22.08* 81.00 93.50 22.33* 85.10 95.70 10.01* 47.90 65.20 E2E-Spot (RegNet-Y 800MF) [12] 44.64* 95.16* 97.72* 23.95* 83.40 94.90 22.17* 83.30 96.00 10.15* 50.11* 67.23* T-DEED (RegNet-Y 200MF) [28] 43.49 96.17 97.95 28.92* 85.15 91.70 31.87* 86.79 96.05 13.54* 53.73* 66.43* T-DEED (RegNet-Y 800MF) [28] 44.08 96.42 97.05 27.59* 84.77 92.86 31.25* 88.17 95.87 12.42* 54.00* 66.70* UGLF [25] —- — —- — — — — — — — 50.20 67.80 Proposed 61.01 96.21 97.75 37.54 86.67 95.53 40.36 89.57 97.38 15.24 52.31 66.57 (a) Tennis dataset [31] (b) FineGym dataset [20] (c) FS-Comp dataset [11] (d) FS-Perf dataset [11] Figure 4.
+Per-class score comparison on δ = 0 setting in terms of mAP for Tennis, FineGym, FS-Comp, and FS-Perf dataset.
+For FineGym, we report results for only 6 out of 32 classes, while results for all classes in the other datasets are reported. 4.5.
+Ablation Studies We conducted ablation studies to validate the design choices made in the proposed framework.
+To ensure a fair compari- son, we analyzed the experimental results on SoccerNet V2 testing dataset.
+Importance of the proposed modules: Table 3 shows the contribution of the proposed ASTRM, SoftIC loss and ASAM components to achieve SOTA results.
+We observe a significant improvement in scores when replacing GSM (used in the E2E-Spot method) with the proposed ASTRM, highlighting the importance of effective feature extraction.
+SAM [7], utilized in Spivak method, further enhances the results by a notable margin.
+Furthermore, we have il- lustrated how ASAM outperforms the scores achieved by SAM.
+Although ASAM and SoftIC loss improves the scores by a relatively small amount, each component plays a role in improving the results.
+This emphasizes the contributions of all components to achieve SOTA result.
+Components of the proposed ASTRM: The proposed AS- TRM module is made up using 3 major components: lo- cal spatial, local temporal and global temporal.
+Here, we highlights the importance of each component and the cor- responding findings are reported in Table 3.
+Notably, the score is at its lowest when utilizing only the spatial aspect of ASTRM; it fails to capture temporal information.
+Further- more, the performance of local temporal is superior to us- ing only the spatial aspect.
+Interestingly, we also observed that global temporal performs better than local temporal
+
+[page 8]
+Table 3.
+Ablation studies on various aspects of the proposed framework on SoccerNet V2 testing dataset in terms of mAP.
+Method Tight Loose Analysis on proposed modules Baseline: E2E-Spot (RegNet-Y 200MF + GSM) 61.19 73.25 RegNet-Y 200MF + ASTRM 68.63 75.57 RegNet-Y 200MF + ASTRM + SAM 71.89 77.50 RegNet-Y 200MF + ASTRM + ASAM 72.65 78.58 RegNet-Y 200MF + ASTRM + ASAM + Focal Loss 70.36 76.86 RegNet-Y 200MF + ASTRM + ASAM + IC Loss 72.05 78.30 RegNet-Y 200MF + ASTRM + ASAM + SoftICloss 73.74 79.11 Analysis on proposed ASTRM module With local spatial only 69.91 76.39 With local temporal only 70.41 76.79 With global temporal only 71.65 77.06 With local spatial + local temporal 71.06 77.10 With local spatial + global temporal 71.82 77.85 With local temporal + global temporal 71.55 76.93 Proposed ASTRM module 73.74 79.11 Analysis on Different Temporal networks Baseline with Bi-GRU 61.19 73.25 Proposed with Bi-GRU 73.74 79.11 with Deformable Attention 67.43 72.15 with Bi-GRU 2 Layers 67.85 73.03 with Transformer (L1H8) 65.89 70.76 with Transformer (L2H8) 67.60 72.35 with Bi-LSTM 68.15 73.35 with MSTCN 68.75 73.50 Analysis on Clip Length Clip length = 64 43.82 52.09 Clip length = 100 (Used in baseline E2E-Spot) 71.20 76.73 Clip length = 128 (proposed) 73.74 79.11 Clip length = 192 71.74 77.02 alone.
+This finding supports the notion that observing dis- tant frames may be necessary to classify the current frame accurately.
+A similar pattern is seen when comparing local spatial + local temporal with local spatial + global temporal.
+Moreover, the inclusion of local spatial information leads to improved scores.
+Conversely, using only temporal informa- tion results in even lower scores, indicating the necessity of spatial information for understanding “what is happen- ing” and temporal information for determining “when it is happening”.
+Overall, our observations highlight the need for spatial and local-global temporal information to identify events precisely and outperform other settings significantly.
+Analysis on Different Temporal modules In our proposed approach, we opted for the Bidirectional GRU (Bi-GRU) as the long-range dependency module in the temporal block after conducting various experiments with different poten- tial temporal networks.
+Table 3 presents the results obtained from the proposed approach using different temporal net- works on the SoccerNet V2 [4] and Tennis [31] test sets.
+The results indicate that the Bi-GRU, as a temporal network, performs favorably compared to other temporal networks.
+Even more advanced temporal networks, such as and Bi- LSTM, Transformer heads, Deformable Attention [16] and MSTCN [6], could not surpass the scores achieved by the Bi-GRU temporal network.
+The difference in scores is vis- ible across all tolerances.
+It is also observed that the pro- posed method generates significantly better results than the baseline E2E-Spot method, which also uses Bi-GRU as the temporal block.
+For instance, the proposed method achieves a 12.55% and 5.86% improvements over baseline model in the tight and loose settings of SoccerNet V2 dataset, re- spectively.
+Similarly, there is an improvement of 15.67% in δ = 0 setting compared to baseline on Tennis dataset.
+Here, this significant improvement is attributed to the proposed ASTRM module and the proposed SoftICLoss function.
+Clip Length: Due to memory and computation constraints, it’s not feasible to process all the frames simultaneously.
+Therefore, we process a fixed number of consecutive frames at a time, which we refer to as the “clip length”.
+The value of the clip length affects the scores because it determines how many frames the network considers at once.
+While we might want to maximize the clip length, we need to find a balance between performance and clip length.
+The results in Table 3 support this idea.
+If the clip length is too short, it significantly impacts the results, while making it too long also has a negative effect on the results. 5.
+Conclusion & Future Directions This paper proposes an end-to-end network for precise spot- ting events in sports videos.
+It effectively tackles the long- range dependency and class imbalance issues and outper- forms existing methods.
+To this extent, we introduce a new module called ASTRM for enhancing spatio-temporal fea- tures.
+Further, to address the class imbalance issue, we pro- pose SoftIC loss, which enforces compact features and im- proves class separability.
+We further employed ASAM dur- ing training to ensure the model performs well on unseen data.
+While our method has advanced the state-of-the-art, especially in the more challenging cases with a relatively simple design, there is further scope for improvement on the two fronts we tried to address.
+Certain larger networks can improve the performance further but at the cost of com- putation.
+Processing the SoccerNet V2 dataset at 2 FPS and 224p is likely to impact the results.
+It will be interesting to see whether scores improve at higher resolution and FPS.
+There will be more data but the computation will also in- crease.
+References [1] Humam Alwassel, Silvio Giancola, and Bernard Ghanem.
+Tsp: Temporally-sensitive pretraining of video encoders for localization tasks.
+In Proceedings of the IEEE/CVF Inter-
+
+[page 9]
+national Conference on Computer Vision, pages 3173–3183, 2021. 6, 7 [2] Mengqi Cao, Min Yang, Guozhen Zhang, Xiaotian Li, Yilu Wu, Gangshan Wu, and Limin Wang.
+Spotformer: A transformer-based framework for precise soccer action spot- ting.
+In 2022 IEEE 24th International Workshop on Multi- media Signal Processing (MMSP), pages 1–6.
+IEEE, 2022. 6 [3] Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio.
+Empirical evaluation of gated recurrent neural networks on sequence modeling. arXiv preprint arXiv:1412.3555, 2014. 2 [4] Adrien Deli`ege, Anthony Cioppa, Silvio Giancola, Meisam J.
+Seikavandi, Jacob V.
+Dueholm, Kamal Nas- rollahi, Bernard Ghanem, Thomas B.
+Moeslund, and Marc Van Droogenbroeck.
+Soccernet-v2 : A dataset and benchmarks for holistic understanding of broadcast soccer videos.
+In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) Workshops, pages 4508–4519, 2021. 1, 2, 6, 8 [5] Julien Denize, Mykola Liashuha, Jaonary Rabarisoa, Astrid Orcesi, and Romain H´erault.
+Comedian: Self-supervised learning and knowledge distillation for action spotting using transformers.
+In Proceedings of the IEEE/CVF Winter Con- ference on Applications of Computer Vision, pages 530–540, 2024. 2, 6 [6] Yazan Abu Farha and Jurgen Gall.
+Ms-tcn: Multi-stage tem- poral convolutional network for action segmentation.
+In Pro- ceedings of the IEEE/CVF conference on computer vision and pattern recognition, pages 3575–3584, 2019. 6, 7, 8 [7] Pierre Foret, Ariel Kleiner, Hossein Mobahi, and Behnam Neyshabur.
+Sharpness-aware minimization for efficiently improving generalization.
+In International Conference on Learning Representations, 2021. 5, 7 [8] Silvio Giancola, Mohieddine Amine, Tarek Dghaily, and Bernard Ghanem.
+Soccernet: A scalable dataset for action spotting in soccer videos.
+In Proceedings of the IEEE Con- ference on Computer Vision and Pattern Recognition (CVPR) Workshops, 2018. 2 [9] Jiaming Han, Yuqiang Ren, Jian Ding, Xingjia Pan, Ke Yan, and Gui-Song Xia.
+Expanding low-density latent regions for open-set object detection.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 9591–9600, 2022. 4, 5 [10] James Hong, Matthew Fisher, Micha¨el Gharbi, and Kayvon Fatahalian.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 9254– 9263, 2021. 6, 7 [11] James Hong, Matthew Fisher, Micha¨el Gharbi, and Kayvon Fatahalian.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pages 9254–9263, 2021. 6, 7 [12] James Hong, Haotian Zhang, Micha¨el Gharbi, Matthew Fisher, and Kayvon Fatahalian.
+Spotting temporally precise, fine-grained events in video.
+In European Conference on Computer Vision, pages 33–51.
+Springer, 2022. 1, 2, 6, 7 [13] Jungmin Kwon, Jeongseop Kim, Hyunseo Park, and In Kwon Choi.
+Asam: Adaptive sharpness-aware minimiza- tion for scale-invariant learning of deep neural networks.
+In Proceedings of the 38th International Conference on Ma- chine Learning, pages 5905–5914.
+PMLR, 2021. 2, 5 [14] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Doll´ar.
+Focal loss for dense object detection.
+IEEE Transactions on Pattern Analysis and Machine Intelligence, 42(2):318–327, 2020. 2 [15] Xiaolong Liu, Song Bai, and Xiang Bai.
+An empirical study of end-to-end temporal action detection.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 20010–20019, 2022. 2 [16] Xiaolong Liu, Qimeng Wang, Yao Hu, Xu Tang, Shiwei Zhang, Song Bai, and Xiang Bai.
+End-to-end temporal ac- tion detection with transformer.
+IEEE Transactions on Image Processing, 31:5427–5441, 2022. 2, 8 [17] Zhaoyang Liu et al.
+Tam: Temporal adaptive module for video recognition.
+In ICCV, pages 13708–13718, 2021. 3 [18] Ilya Loshchilov and Frank Hutter.
+Decoupled weight de- cay regularization.
+In International Conference on Learning Representations, 2019. 5 [19] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Dollar.
+Designing network design spaces.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2020. 3 [20] Dian Shao, Yue Zhao, Bo Dai, and Dahua Lin.
+Finegym: A hierarchical video dataset for fine-grained action understand- ing.
+In IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2020. 7 [21] Joao VB Soares and Avijit Shah.
+Action spotting using dense detection anchors revisited: Submission to the soccer- net challenge 2022. arXiv preprint arXiv:2206.07846, 2022. 5, 6 [22] Joao VB Soares, Avijit Shah, and Topojoy Biswas.
+Tem- porally precise action spotting in soccer videos using dense detection anchors.
+In 2022 IEEE International Conference on Image Processing (ICIP), pages 2796–2800.
+IEEE, 2022. 2 [23] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz.
+Gate-shift networks for video action recognition.
+In Proceed- ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2020. 2 [24] Matteo Tomei, Lorenzo Baraldi, Simone Calderara, Simone Bronzin, and Rita Cucchiara.
+Rms-net: Regression and masking for soccer event spotting.
+In 2020 25th Inter- national Conference on Pattern Recognition (ICPR), pages 7699–7706.
+IEEE, 2021. 2 [25] Kim Hoang Tran, Phuc Vuong Do, Ngoc Quoc Ly, and Ngan Le.
+Unifying global and local scene entities modelling for precise action spotting. arXiv preprint arXiv:2404.09951 (Accepted for IJCNN 2024), 2024. 2, 3, 6, 7 [26] Sanghyun Woo, Jongchan Park, Joon-Young Lee, and In So Kweon.
+Cbam: Convolutional block attention module.
+In Proceedings of the European Conference on Computer Vi- sion (ECCV), 2018. 3 [27] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Al- bert Clap´es.
+Astra: An action spotting transformer for soccer
+
+[page 10]
+videos.
+In Proceedings of the 6th International Workshop on Multimedia Content Analysis in Sports, pages 93–102, 2023. 2, 6 [28] Artur Xarles, Sergio Escalera, Thomas B.
+Moeslund, and Albert Clap´es.
+T-deed: Temporal-discriminability enhancer encoder-decoder for precise event spotting in sports videos.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops, pages 3410–3419, 2024. 2, 6, 7 [29] Fangqiu Yi, Hongyu Wen, and Tingting Jiang.
+Asformer: Transformer for action segmentation. 32nd British Machine Vision Conference, BMVC 2021, 2021. 2, 6, 7 [30] Hongyi Zhang, Moustapha Cisse, Yann N.
+Dauphin, and David Lopez-Paz. mixup: Beyond empirical risk minimiza- tion.
+In International Conference on Learning Representa- tions, 2018. 4, 5 [31] Haotian Zhang, Cristobal Sciutto, Maneesh Agrawala, and Kayvon Fatahalian.
+Vid2player: Controllable video sprites that behave and appear like professional tennis players.
+ACM Trans.
+Graph., 40(3), 2021. 6, 7, 8 [32] Xin Zhou, Le Kang, Zhiyu Cheng, Bo He, and Jingyu Xin.
+Feature combination meets attention: Baidu soccer em- beddings and transformer based temporal detection. arXiv preprint arXiv:2106.14447, 2021. 2, 6

@@ -1,0 +1,850 @@
+[page 1]
+Deep Learning for Sports Video Event Detection: Tasks, Datasets, Methods, and Challenges HAO XU, School of Information Technology, Deakin University, Australia ARBIND AGRAHARI BANIYA, School of Information Technology, Deakin University, Australia SAM WELLS, Paralympics Australia, Australia MOHAMED REDA BOUADJENEK, School of Information Technology, Deakin University, Australia RICHARD DAZELEY, School of Information Technology, Deakin University, Australia SUNIL ARYAL, School of Information Technology, Deakin University, Australia Video event detection has become a cornerstone of modern sports analytics, powering automated performance evaluation, content generation, and tactical decision-making.
+Recent advances in deep learning have driven progress in related tasks such as Temporal Action Localization (TAL), which detects extended action segments; Action Spotting (AS), which identifies a representative timestamp; and Precise Event Spotting (PES), which pinpoints the exact frame of an event.
+Although closely connected, their subtle differences often blur the boundaries between them, leading to confusion in both research and practical applications.
+Furthermore, prior surveys either address generic video event detection or broader sports video tasks, but largely overlook the unique temporal granularity and domain-specific challenges of event spotting.
+In addition, most existing sports video surveys focus on elite-level competitions while neglecting the wider community of everyday practitioners.
+This survey addresses these gaps by: (i) clearly delineating TAL, AS, and PES and their respective use cases; (ii) introducing a structured taxonomy of state-of-the-art approaches—including temporal modeling strategies, multimodal frameworks, and data-efficient pipelines tailored for AS and PES; and (iii) critically assessing benchmark datasets and evaluation protocols, highlighting limitations such as reliance on broadcast- quality footage and metrics that over-reward permissive multi-label predictions.
+By synthesizing current research and exposing open challenges, this work provides a comprehensive foundation for developing temporally precise, generalizable, and practically deployable sports event detection systems for both the research and industry communities.
+CCS Concepts: • Computing methodologies →Activity recognition and understanding; Video segmen- tation; Video summarization.
+Additional Key Words and Phrases: Event Detection, Temporal Action Localization, Sports Videos ACM Reference Format: Hao Xu, Arbind Agrahari Baniya, Sam Wells, Mohamed Reda Bouadjenek, Richard Dazeley, and Sunil Aryal. 2025.
+Deep Learning for Sports Video Event Detection: Tasks, Datasets, Methods, and Challenges. 1, 1 (October 2025), 28 pages. https://doi.org/10.1145/nnnnnnn.nnnnnnn Authors’ Contact Information: Hao Xu, School of Information Technology, Deakin University, Melbourne, Australia, august. xu@research.deakin.edu.au; Arbind Agrahari Baniya, School of Information Technology, Deakin University, Melbourne, Australia, arbind.baniya@deakin.edu.au; Sam Wells, Paralympics Australia, Melbourne, Australia, sam.wells@paralympic. org.au; Mohamed Reda Bouadjenek, School of Information Technology, Deakin University, Melbourne, Australia, reda. bouadjenek@deakin.edu.au; Richard Dazeley, School of Information Technology, Deakin University, Melbourne, Australia, richard.dazeley@deakin.edu.au; Sunil Aryal, School of Information Technology, Deakin University, Melbourne, Australia, sunil.aryal@deakin.edu.au.
+Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and the full citation on the first page.
+Copyrights for components of this work owned by others than the author(s) must be honored.
+Abstracting with credit is permitted.
+To copy otherwise, or republish, to post on servers or to redistribute to lists, requires prior specific permission and/or a fee.
+Request permissions from permissions@acm.org. © 2025 Copyright held by the owner/author(s).
+Publication rights licensed to ACM.
+ACM XXXX-XXXX/2025/10-ART https://doi.org/10.1145/nnnnnnn.nnnnnnn arXiv:2505.03991v3  [cs.CV]  10 Oct 2025
+
+[page 2]
+Introduction Sports represent one of the largest global markets, projected to reach 599.9 billion US dollars by 2025 and 826 billion US dollars by 2030, with a compound annual growth rate of 6.6% [43].
+Beyond its economic impact in industries such as media, marketing, and apparel, sports are fundamentally focused on athletic performance, where optimising player efficiency, refining game strategies, and enhancing fan engagement are critical.
+The rise of sports analytics, the systematic collection, processing, and analysis of performance data, has enabled data-driven decision-making, leading to fundamental changes in strategy.
+For instance, basketball has seen an increased reliance on three-point shooting, guided by predictive models that estimate expected points from various court locations [53].
+Within this context, video event detection has emerged as a fundamental yet challenging task in sports analytics.
+Accurate identification of key moments, such as corner kicks in soccer, rally conclu- sions in racket sports, or scoring events across disciplines, provides critical insight to coaches and athletes, supporting more effective performance analysis and tactical decision-making.
+Moreover, event detection benefits downstream applications by filtering non-playing segments, optimising computational resources for subsequent tasks such as object tracking, and enabling automated highlight generation for commercial broadcasting and fan engagement.
+Fig. 1.
+Annual publication count from 2010 to 2024 based on a Scopus keyword search for "sports" AND "deep learning".
+Computer Vision (CV) has played a pivotal role in advancing sports video analysis, enabling automated player tracking, action recognition, tactical analysis, injury prevention, and officiating through advanced visual data processing [14, 23, 36, 54, 85, 95].
+While traditional CV methods laid the foundation for many applications [23, 73], they heavily relied on handcrafted features and struggled with dynamic environments, occlusions, and real-time constraints.
+Recent break- throughs in Deep Learning (DL), particularly through Convolutional Neural Networks (CNNs) and Transformer architectures, have significantly enhanced the accuracy, efficiency, and scalability of sports video analysis tasks [23].
+These modern techniques now power real-time object detection, robust player tracking such as [38, 72, 98], pose estimation [16], and fine-grained event recognition [32, 44], fundamentally reshaping the landscape of sports analytics.
+
+[page 3]
+To further illustrate the growing interest in this domain, we compiled a publication trend analysis using Scopus, based on keyword searches related to "sports" and "deep learning." The resulting bar chart (Figure 1) shows a clear year-on-year increase in the number of relevant publications from 2010 to 2024, reinforcing the expanding research momentum in this field.
+As video event detection in sports continues to advance with deep learning-based computer vision, the task has evolved into three closely related formulations.
+Temporal Action Localization (TAL) detects extended temporal segments of an action (e.g., the duration of a soccer corner kick); Action Spotting (AS) identifies a single representative keyframe of an event (e.g., the release of a basketball shot); and Precise Event Spotting (PES) imposes stricter temporal accuracy requirements than AS by pinpointing the exact timestamp of an event with frame-level precision (e.g., the instant a table tennis ball bounces).
+Despite their similarities, these formulations often cause confusion among both academic and industry readers, as the subtle distinctions make it unclear which task is most appropriate for a given application.
+Sports video event detection also introduces unique challenges that distinguish it from generic action understanding.
+Events are often brief and demand frame-level precision, in contrast to the longer temporal windows common in TAL benchmarks.
+Frequent occlusions from players or equipment, rapid object motion, and small target sizes further complicate detection [38, 89].
+In practical deployments, analysts typically work with monocular broadcast footage or resource- constrained capture environments, limiting the availability of multi-view or high-resolution data [88].
+Moreover, evaluation protocols originally designed for broader action recognition frequently overlook the strict temporal accuracy required in sports, sometimes rewarding overly permissive multi-label predictions that provide little practical value.
+Previous studies, such as those by Ghosh et al.
+[23], broadly survey AI applications in sports analytics but do not specifically address DL-based CV methods.
+Similarly, Thomas et al.
+[73] focus primarily on traditional CV approaches designed for multi-camera systems.
+In contrast, our survey specifically targets deep learning-based approaches—including recent advances in CNNs and Vision Transformers—for event detection tasks within monocular video contexts, enhancing its relevance for real-world deployment.
+Other comprehensive surveys by Naik et al.
+[54], Karoline et al.
+[63], Zhao et al.
+[95], Kamble et al.
+[41], Wu et al.
+[85], and Yin et al.
+[93] extensively review CV methods across various sports types and analytics tasks, including object tracking and action recognition.
+However, they do not specifically address video event detection across sports disciplines.
+The most closely related work by Hu et al.
+[37] provides an extensive overview of TAL methods, but it does not cover the increasingly critical tasks of AS and PES, nor is it specifically focused on the sports domain.
+Motivated by these gaps and challenges, our objective is to consolidate recent progress in sports video event detection with a particular focus on DL approaches, establish clear task definitions, and critically examine methods, datasets, and evaluation practices in the context of real-world sports analytics, while also providing insights through in-depth discussions of open challenges and future directions.
+To this end, our survey makes the following key contributions: • Task Definitions and Distinctions: We formally define and differentiate the three central event detection tasks in sports videos—TAL, AS, and PES—highlighting their objectives, annotation schemes, and relevance to sports scenarios requiring different levels of temporal precision. • Methodological Taxonomy: We propose a taxonomy of deep learning approaches for AS and PES, reviewing temporal modeling methods, multi-model based methods, and data- efficient frameworks built on convolutional, recurrent, and transformer models.
+
+[page 4]
+• Datasets and Evaluation Protocols: We summarize the benchmark datasets and evaluation metrics used across TAL, AS, and PES, and critically assess their suitability for real-world deployment.
+In particular, we highlight limitations related to confidence thresholding and multi-label predictions, while also discussing potential solutions. • Insights and Future Directions: We discuss open challenges such as poor generalization across sports, limited supervision strategies, and unrealistic evaluation schemes, and pro- pose research directions toward more robust and deployable spotting models in practical application settings.
+By aligning these contributions with the specific needs of sports event detection, our survey provides a focused and timely perspective that complements existing surveys in sports analytics and video understanding.
+The remainder of the paper is organized as follows.
+Section 2 provides clear definitions of the tasks involved in sports video event detection.
+Section 3 reviews existing methodologies in this domain.
+Sections 4 and 5 introduce benchmark datasets and evaluation metrics commonly used for sports event detection.
+Section 6 presents practical applications enabled by sports video event detection.
+Section 7 discusses key challenges and future research directions.
+Finally, Section 8 concludes the paper with a summary of insights and findings.
+Sports Event Detection In sports video analysis, three core tasks have emerged for temporal event detection: TAL, AS, and PES.
+Although related, they differ in output format, annotation granularity, and application focus (see Table 1).
+In this section, we clearly define each task and discuss their suitability for sports video event detection.
+Table 1.
+Comparison of Temporal Action Localisation (TAL), Action Spotting (AS), and Precise Event Spotting (PES).
+Aspect TAL AS PES Output Type Temporal interval Single key frame Single key frame Annotation Format Start and end times Single timestamp Single timestamp Tolerance Window ∼1–5 seconds 5–60 frames 0–2 frames Best Suited For Long-duration actions Ambiguous, fast-paced actions Frame-accurate event detection Annotation Cost High Medium Medium Use Cases Long & Continuous events Sports highlight detection Fine-grained critical events Temporal Action Localization TAL—also referred to as Temporal Action Detection (TAD)—aims to detect and classify action segments within untrimmed videos.
+A common formulation builds on Temporal Action Proposal Generation (TAPG), which first identifies candidate temporal regions likely to contain actions and then assigns class labels [37, 47, 48].
+This is typically achieved in two stages: (i) proposal generation, where potential action boundaries are suggested, and (ii) classification and refinement, where those proposals are labeled and their temporal boundaries adjusted.
+Originally developed for generic activity understanding on datasets such as ActivityNet [4] and THUMOS [39], TAL methods have since been adapted to sports because of their ability to model temporal structure over extended sequences.
+The main challenge lies in accurately predicting start
+
+[page 5]
+and end boundaries, particularly for fine-grained or short-duration actions, whereas classification within well-defined proposals is comparatively more reliable [37].
+In the context of sports, TAL is effective for analyzing long or continuous actions such as rallies in racket sports or set plays in team games.
+However, it is far less suitable for overlapping or instantaneous events—such as ball bounces or racket–ball contacts—that require frame-level precision.
+Consequently, TAL is best applied to coarse temporal segmentation tasks, including highlight generation and the detection of extended play phases.
+Fig. 2.
+Example of Temporal Action Localization: in tennis, the full serve motion is annotated as a time interval (blue bar).
+Action Spotting AS, introduced by Giancola et al.
+[24], was proposed to overcome the difficulty of annotating precise action boundaries in sports videos, where events are often rapid, overlapping, or continuous.
+Instead of labeling start and end times—which can be subjective and inconsistent—AS represents each event with a single timestamp, referred to as the “spotting point.” The goal of AS is therefore to predict the coarse frame in which an event occurs, rather than its full temporal extent.
+This task was first introduced on the SoccerNet dataset [24], where events such as goals, sub- stitutions, and cards are inherently ambiguous in terms of their exact boundaries.
+To account for this ambiguity, predictions are evaluated within a relatively wide tolerance window (typically ±50 frames).
+This formulation greatly simplifies annotation, reduces subjectivity, and enables the efficient construction of large-scale benchmarks such as SoccerNet and its extensions [11].
+Both TAL and AS aim to localize events temporally, but their priorities differ.
+TAL captures interval-level segments, making it effective for long, structured actions.
+AS, by contrast, trades interval precision for a more scalable and annotation-friendly framework, making it particularly well suited for rapid or ambiguous sports actions such as passes, shots, or fouls in soccer.
+The AS formulation also aligns closely with downstream applications such as match summarization and key-stat reporting, where identifying the representative moment of an action is often more useful than modeling its full duration.
+Precise Event Spotting PES, first proposed by Hong et al.
+[33], extends the AS formulation by enforcing strict frame-level precision.
+While AS evaluates predictions within a wide tolerance window (e.g., ±50 frames), many sports events require far greater accuracy.
+For instance, tennis ball bounces or figure skating landings occur within only a few frames and must be identified precisely to provide valuable information for analysts and coaches.
+By tightening the temporal tolerance of AS, PES was introduced as a more suitable task for fine-grained sports scenarios.
+The need for such precision is further supported by feedback from Table Tennis Australia, where detecting ball contacts or bounce points often requires localization within under 100 milliseconds.
+Errors of even 1–2 frames can result in missing decisive events (see Figure 3).
+
+[page 6]
+Fig. 3.
+Example of Precise Event Spotting: in table tennis, the moment a player contacts the ball during a serve (red) or when a ball bounces on the table (blue).
+Because of these requirements, PES is increasingly being adopted by the community as the latest evolution of event detection tasks.
+Its high temporal fidelity makes it essential for applications such as biomechanics, officiating support, key-stat summarization, and highlight generation with frame-level accuracy.
+Recent datasets have already embraced this stricter formulation, including SoccerNet-v2 [11], tennis [33], and table tennis [88].
+Video Event Detection In this section, we provide an overview of video event detection methods in sports.
+We begin by describing the foundational general-purpose approaches that shaped many of the earliest sports video event detection pipelines.
+Next, we present a comprehensive review of methods specifically developed for sports, with a focus on the recent emergence of AS and PES.
+These tasks have been introduced to address the unique challenges of detecting fine-grained events in fast-paced and often ambiguous sports scenarios.
+Foundations of Temporal Action Localization Although our focus is on sports event detection, many current methods are rooted in advances from generic TAL.
+TAL methods generally fall into two paradigms: Global-to-Local (GTL), which generates proposals from predefined anchors or sliding windows, and Local-to-Global (LTG), which predicts per-frame start, end, and actionness probabilities before combining them into segments (Figure 4).
+Early GTL approaches such as TURN [21] and CTAP [20] relied on sliding-window proposals, offering strong recall but limited boundary precision.
+In contrast, LTG methods shifted the field toward boundary-sensitive modeling.
+The Boundary-Sensitive Network (BSN) [48] was the first to predict frame-level start, end, and actionness scores, generating high-quality proposals with fewer candidates.
+Building on this idea, BMN [47] introduced a boundary-matching mechanism to efficiently evaluate densely distributed proposals via a two-dimensional confidence map.
+Later refinements, such as BSN++ [68], incorporated completeness modeling and global-local fusion to improve proposal quality, while TCANet [56] and BCNet [92] leveraged context aggregation and attention mechanisms to further enhance boundary accuracy.
+These advances established the technical foundation for event detection in sports.
+However, their reliance on extended temporal intervals limits applicability to fast, fine-grained events, as seen in TAL.
+For instance, while proposal-based methods can capture rallies in racket sports, they often fail to localize instantaneous actions such as ball bounces or racket–ball contacts.
+This limitation motivated the development of AS, which simplifies annotations to single timestamps, and
+
+[page 7]
+Predefined Anchors\Segments  Model Classifier Regressor Frame  Video Starting Probability Score Ending Probability Score Classifier Fig. 4.
+Comparison of Global-to-Local (GTL, left) and Local-to-Global (LTG, right) approaches.
+GTL classifies predefined temporal anchors as action or background, followed by regression to refine time intervals.
+LTG predicts per-frame start and end probabilities to define action boundaries, which are then classified.
+PES, which enforces frame-level accuracy.
+In the following sections, we review methods explicitly designed for these tasks in sports video event detection.
+Sports Video Event Detection While general TAL-based methods laid the foundation for video event detection, their reliance on coarse temporal intervals limits applicability in sports.
+Consequently, research has increasingly shifted toward AS and PES, which emphasize frame-level precision.
+In this section, we review methodologies explicitly developed for these two tasks in sports video event detection.
+Although AS and PES differ in evaluation metrics and frame-level precision requirements, many detection models are applicable to both; we show a typical architecture workflow in Figure 5. 2D CNNS 3D CNNS Vision Transformers Input  1D/3D CNN RNN/GRU/LSTM Transformer Temporal Pooling Per Frame Whole Chunk Feature Extractor  Temporal Modules Outputs Fig. 5.
+Typical workflow of AS/PES models: an input video clip composed of multiple frames is first processed by a feature extractor (2D or 3D), followed by temporal modules to capture temporal dependencies.
+The final output can be frame-level predictions or clip-level classifications, depending on the task requirements.
+We also categorize existing approaches according to their underlying architectural strategies: • Temporal Modeling Methods operate on frame-level or chunk-level features extracted from pretrained visual models to capture temporal structure within a window.
+These approaches range from (i) simple pooling-based aggregation (e.g., mean, max pooling, or NetVLAD++) that condenses temporal information for classification, to (ii) learnable sequence encoders (e.g., 1D/3D CNNs, RNNs, Transformers) that explicitly model dependencies across frames, and (iii) frame-aware architectures designed to capture subtle differences at the frame level
+
+[page 8]
+Table 2.
+Summary of methods for AS and PES.
+Performance is grouped under the Test and Challenge sets.
+All results are reported on the SoccerNet Action Spotting dataset, where italicized entries indicate results from SoccerNet-v1 [24], and plain text entries are from SoccerNet-v2 [11].
+Bold numbers indicate the highest scores in each column.
+A ✓in the last column means the method was evaluated on datasets beyond SoccerNet.
+C.D.
+Eval means cross-dataset evaluation.
+Method Year Category Parameter Size Test Set Challenge Set C.D Eval.
+Tight Loose Tight Loose Giancola et al.
+[24] Pooling-Based – – – – Rongved et al.
+[60] Frame-Aware – – – – – Vats et al.
+[83] Temporal Encoder-Based – – – – – CALF [8] Pooling-Based – – – – Vanderplaetsen et al.
+[81] Multi-Modal Fusion – – – – – NetVLAD++ [26] Pooling-Based – – – – RMS-Net [74] Frame-Aware – – – – Zhou [96] Pooling-Based – – E2E-Spot [34] Frame-Aware 4.5M – – ✓ Shi et al.
+[66] Temporal Encoder-Based – – – – – STE [10] Temporal Encoder-Based 2.3M – SpotFormer [5] Temporal Encoder-Based – – – – Soares et al.
+[67] Temporal Encoder-Based 8.9M – Zhu et al.
+[97] Pooling-Based – – – – ASTRA [86] Multi-Modal Fusion – – – – T-DEED [87] Frame-Aware 16.4M – – – – ✓ COMEDIAN [12] Data-Efficient Learning 29.1M – – Tran et al.
+[80] Frame-Aware – ✓ Santra et al.
+[62] Frame-Aware 6.46M - - ✓ for precise event localization in spotting tasks, all of them following by a classifier to classify the event either in frame level or chunk level. • Multi-Modal Fusion Methods integrate additional modalities beyond visual signals—such as audio cues (e.g., game sounds, whistles, crowd reactions) or textual data (e.g., commentary transcripts)—to provide complementary context and improve event detection performance. • Data-Efficient Learning Approaches aim to reduce reliance on large-scale manual annota- tions by leveraging strategies such as semi-supervised learning, self-supervised pretraining, active learning, or knowledge distillation.
+Table 2 provides an overview of the methods discussed in this section, along with their evaluation performance on the SoccerNet benchmark where available.
+The table also indicates the taxonomy category of each method, offering a concise comparison across different approaches. 3.2.1 Temporal Modeling Methods.
+Pooling-Based. approaches typically adopt a sliding-window strategy, where videos are divided into fixed-length temporal segments containing a set of frames.
+Frame or chunk-level features are first extracted using backbone models such as 2D or 3D CNNs, and then aggregated over the temporal window using techniques such as average pooling, NetVLAD [1], or the temporally-aware variant NetVLAD++ [26].
+The aggregated representation is subsequently passed to a classifier to predict event labels.
+The overview of the pooling based models is shown in Figure 6 One of the earliest works in this category is the SoccerNet baseline [24], which compared a range of pooling techniques—including mean, max, NetVLAD [1], NetRVLAD [1], NetFV, and SoftDBOW [52] —on pre-extracted window features from C3D [76], I3D [6], and ResNet [31] to
+
+[page 9]
+Pooling Block Frames Backbone MLP Event Pooling Based Models Extracted Features Fig. 6.
+Pooling-based models for sports video event detection.
+Video frames are processed by a CNN backbone to extract features, which are then aggregated within a temporal window using pooling methods (e.g., mean, max, NetVLAD).
+The pooled representation is classified into event probabilities through the MLP. classify segments of soccer matches.
+The best performance was obtained by combining ResNet features with NetRVLAD pooling.
+Interestingly, 2D CNNs were found to outperform 3D CNNs in this setting.
+A possible explanation is that 3D CNNs already encode temporal dynamics during feature extraction, and further temporal aggregation through pooling may introduce redundancy or noise.
+In contrast, 2D CNNs primarily capture spatial information, allowing pooling strategies to more effectively extract complementary temporal cues.
+Building on this direction, Rongved et al.
+[60] investigated the use of 3D ResNet [28] models pretrained on Kinetics-400 [42], adapted from [79].
+Their approach enhanced the ability to capture temporal dynamics, demonstrating that models pretrained on large-scale video action recognition datasets can be effectively transferred to event detection in sports.
+Specifically, the model was fed with input segments of 128 frames, and post-processing was applied using a moving average filter and non-maximum suppression (NMS) to reduce noise and prevent overlapping predictions of the same class.
+Zhou et al.
+[96] advanced this line of work by fine-tuning multiple action recognition back- bones—including TPN [91], GTA [29], VTN [55], irCSN [78], and I3D-Slow [18]—on soccer video snippets.
+The combined features, when processed by NetVLAD++ [26], achieved state-of-the-art performance on the SoccerNet benchmark.
+These results highlighted the effectiveness of ensemble learning in sports video event detection; however, the approach also raised efficiency concerns, particularly for real-time applications.
+Zhu et al.
+[97] proposed a more efficient approach by employing a single multi-scale Vision Transformer (MViT) [46] for feature extraction on each proposal consisting of 16 frames.
+These frames were sampled at a stride of four from the original video, meaning that each proposal effectively covered 64 consecutive frames.
+The extracted features were then aggregated using
+
+[page 10]
+NetVLAD++ pooling following by a fully connected layer to classify labels.
+This design achieves a balance between temporal modeling capacity and computational efficiency, making it well suited for deployment in resource-constrained settings.
+One of the major challenges in sports video event detection is severe class imbalance: background (non-event) segments dominate most of the video, while meaningful events occupy only a small fraction.
+Standard loss functions such as cross-entropy typically neglect the contribution of frames surrounding an event, treating them as background.
+To address this, Cioppa et al.
+[8] proposed a context-aware loss function that leverages temporal structure by dynamically weighting frames based on their proximity to annotated events.
+By adopting the smooth temporal weighting, it improved the baseline’s ability to focus on relevant cues and yielded a 12.8% performance gain on SoccerNet-v1 [24].
+However, its effectiveness diminishes on denser datasets such as PES [34], where frame-level precision is critical.
+Pooling-based methods have their merits: they are easy to implement, typically consisting of a CNN feature extractor combined with a temporal pooling mechanism.
+They are also computationally efficient, especially when compared to more complex temporal modeling approaches such as RNNs or Transformers.
+However, these advantages come with critical limitations.
+Most pooling-based approaches rely on generic CNN feature extractors that were not specifically designed for sports videos.
+This presents several challenges: the high frame rates of sports footage often result in adjacent frames that look very similar, while key details of interest (e.g., a tennis ball) are extremely small relative to the entire frame.
+Such conditions make it especially difficult for generic backbones to capture the fine-grained features needed for accurate event detection.
+Furthermore, temporal pooling itself discards sequential information.
+Even advanced pooling methods such as NetVLAD++ inevitably compress temporal dynamics into a fixed representation, which limits frame-level precision.
+This is particularly problematic in sports video detection, where accurate localization at the frame level is crucial.
+These limitations are also reflected in the AS task, helping to explain why recent research has shifted toward methods that emphasize fine-grained, frame-level precision, as exemplified by PES.
+Encoder Methods. enhance feature exploitation pipelines by replacing pooling operations with sequence models that explicitly capture temporal dependencies across frames.
+Examples include 1D CNNs, 3D CNNs [77], RNNs, and Transformers [82], which enable richer contextual model- ing.
+Unlike pooling-based approaches, these methods preserve the temporal dimension, allowing predictions to be made at the frame level and providing greater flexibility for fine-grained event localization.
+The overview of the encoder methods is shown in Figure 7.
+To address the variability in action duration, Vats et al.
+[83] proposed a multi-tower 1D CNN architecture that processes input features at multiple temporal resolutions in parallel.
+Each tower uses different kernel sizes to capture short-term dynamics and longer-term dependencies, and their outputs are concatenated before final classification.
+Although the temporal dimension is ultimately collapsed—reflecting the coarse one-minute annotations of SoccerNet-v1 and NHL dataset [83], the multi-scale encoding provides richer intermediate representations, improving robustness across diverse sporting actions compared to single-resolution baselines.
+Tomei et al.
+[74] introduced RMS-Net, which formulates sports event detection in a manner similar to TAL.
+First, frame-level features are extracted from the entire video chunk.
+These features are then fused along the temporal dimension using 1D convolutions, followed by a max operation to remove the time axis.
+The resulting representation is processed by two output heads: a regression head that predicts temporal offsets and a classification head that assigns action labels.
+In addition, they proposed a novel data augmentation strategy motivated by the observation that the most informative visual cues often occur in frames immediately preceding or following an event.
+By
+
+[page 11]
+Encoder Block 3D\1D CNN \Transformer Encoder Based Models Frames Backbone Extracted Features MLP Event Fig. 7.
+Illustration of encoder-based methods for AS and PES.
+Frame-level features are first extracted by a backbone and then processed by temporal encoders (e.g., 1D/3D CNNs, RNNs, Transformers) that preserve the sequence length and model dependencies across time.
+Predictions can then be made either at the segment level (after temporal pooling) or at the frame level for fine-grained event spotting. randomly masking a portion of these frames, the model is forced to rely on either pre-event or post- event information, thereby improving robustness.
+This strategy yielded a 2.5 mAP improvement in evaluation, demonstrating the effectiveness of targeted temporal masking.
+SpotFormer [5] further demonstrates the strength of sequence modeling approaches by fusing features from multiple pretrained backbones (e.g., VideoMAE [75], Swin Transformer [51]).
+The authors argue that different backbones capture complementary high-level spatiotemporal infor- mation, which benefits the temporal encoder.
+To combine these representations, features are first processed through isolated multilayer perceptrons (MLPs) and then concatenated along the channel dimension.
+The fused features are subsequently passed to a Transformer-based spotting head com- posed of several encoder blocks that model frame-wise interactions, followed by fully connected layers that predict per-frame action probabilities.
+This design enables frame-level predictions with high accuracy, but the model’s complexity makes it less practical for real-time deployment.
+To address computational constraints, Darwish et al.
+[10] introduced the Spatio-Temporal Encoder (STE), a lightweight architecture based on 1D convolutions and MLPs.
+Although the design is rela- tively simple, the model emphasizes efficiency, achieving competitive accuracy with substantially lower computational cost.
+Notably, STE can be trained entirely on CPUs, in contrast to most other methods that require GPUs, highlighting its practicality for deployment in resource-constrained or real-time sports analytics settings.
+Soares et al.
+[67] adapted an anchor-based detection framework—originally developed for TAL—to the AS domain.
+In their design, a video chunk is first passed through a feature extractor to obtain frame-level features, which are then reduced in dimensionality using a two-layer MLP.
+These features are processed by a trunk module that follows an encoder–decoder structure, where temporal information is progressively compressed and then restored.
+The trunk can be instantiated either as a 1D U-Net [61] or as a Transformer, enabling a trade-off between local boundary sensitivity
+
+[page 12]
+and long-range context modeling.
+The processed features are finally passed through convolutional layers and two output heads: one for temporal offset regression and another for action classification.
+This design achieved strong results on the SoccerNet Challenge benchmark [9].
+However, as with other anchor-based approaches, the reliance on pre-defined temporal scales remains a limitation, reducing adaptability to instantaneous events such as ball bounces in PES.
+Shi et al.
+[66] addressed the challenge of variable event durations by introducing a multi-scene encoding strategy.
+Instead of processing a fixed-length input, video chunks are segmented into similar-duration subsets, each handled by a dedicated Transformer encoder.
+This design enables the network to adapt its receptive field to both short-lived actions (e.g., passes, shots) and longer phases of play (e.g., build-up sequences), improving robustness across timescales.
+While effective, this approach comes at the cost of increased computational complexity due to maintaining multiple Transformer branches, making real-time deployment more challenging.
+Nevertheless, it highlights an important direction for spotting models—explicitly accounting for the highly diverse temporal granularity of sports events.
+Taken together, these approaches illustrate the progression of sequence modeling in sports event detection—from early multi-scale convolutional encoders designed for coarse annotations, through hybrid encoder–decoder architectures with offset regression, to more recent Transformer-based spotting models that emphasize frame-level precision.
+While accuracy has steadily improved, trade-offs remain between temporal granularity, computational cost, and real-time applicability.
+Frame-Aware.
+Models represent the most recent research direction, aiming to enhance spatiotem- poral representation by directly modifying backbone architectures and temporal modeling to address the specific demands of sports video analysis.
+These approaches introduce frame-specific mechanisms that preserve the full temporal dimension, enabling true frame-level predictions and improving temporal discriminability for PES.
+Unlike pooling- and encoder-based methods, which primarily adapt architectures developed for generic video tasks, frame-aware models jointly learn low-level visual cues and high-level temporal semantics tailored to spotting, resulting in more accurate and temporally precise outcomes.
+The overview of the frame-aware models is shown in Figure 8.
+Hong et al.
+[34] introduced E2E-Spot, the first frame-aware model, while also formally proposing the task of PES.
+Unlike pooling- and encoder-based approaches—most of which relied on pre- extracted features such as Baidu embeddings [96] on SoccerNet—E2E-Spot was designed as a fully end-to-end trainable architecture built on RegNet-Y [58].
+To capture fine-grained temporal dynamics with minimal computational overhead, the model incorporates Gate Shift Modules (GSM) [69], which explicitly model temporal shifts by selectively exchanging feature information across time through a gating mechanism.
+The sequential features are then processed by a bidirectional GRU [7], followed by an MLP that outputs per-frame event probabilities.
+This design enables frame-accurate localization, positioning E2E-Spot as a cornerstone in the development of PES.
+Despite the success of E2E-Spot, Tran et al.
+[80] highlighted its limitation of relying primarily on global temporal modeling.
+To address this, they introduced the Unifying Global and Local (UGL) module.
+While retaining the RegNet-Y backbone with GSM for global spatiotemporal encoding, UGL integrates GLIP [45], a vision-language model, to perform fine-grained local semantic reasoning (e.g., recognizing contextual cues such as the presence of a referee or a ball).
+By combining global temporal context with localized semantic awareness, UGL improves the detection of subtle or ambiguous events, including fouls and off-screen actions, and achieves state-of-the-art performance on the SoccerNet benchmark.
+However, the reliance on GLIP is both a strength and a limitation: although its pretrained representations transfer well to SoccerNet without requiring fine-tuning,
+
+[page 13]
+Event Frames Backbone Extracted Features Temporal Layer Frame Aware Based Models Fig. 8.
+Overview of frame-aware models.
+Input frames are processed by a backbone that is modified by temporal modules (e.g., GSM, GRU, or Transformers) designed to enhance frame-level discriminability.
+The model outputs event probabilities for each frame, providing the strict temporal precision required for PES. applying UGL to other sports often demands GLIP fine-tuning, which introduces substantial computational overhead and can lead to reduced performance.
+One major challenge in PES is frame discriminability, as adjacent frames often appear visually similar with only subtle differences.
+To improve temporal resolution and disambiguate closely spaced events, Xarles et al. proposed T-DEED [87], a Transformer-based encoder–decoder ar- chitecture specifically designed for PES.
+The model introduces Scalable-Granularity Perception (SGP) layers [65], originally developed to address the rank-loss problem in Transformers, thereby enhancing token discriminability within sequences.
+In addition, it incorporates Gate Shift Fusion (GSF) modules [70], a variant of the GSM module with improved fusion mechanisms prior to shifting, enabling stronger retention of temporal discriminability across tightly clustered frames.
+This combination proves especially effective for fast-paced sports where events are rapid and visually similar, achieving state-of-the-art performance across multiple PES datasets.
+Santra et al. proposed the Adaptive Spatio-Temporal Refinement Module (ASTRM) [62], further advancing PES modeling.
+ASTRM enhances backbone features by jointly incorporating spatial and temporal cues through three dedicated blocks: local spatial, local temporal, and global temporal.
+The refined features are then passed into a temporal module consisting of a bidirectional GRU followed by an MLP, which outputs per-frame event classifications.
+To address the severe class imbalance common in PES, the authors also introduced the Soft Instance Contrastive (SoftIC) loss.
+This loss encourages feature compactness and improves inter-class separability, while resolving a key limitation of the Instance Contrastive Loss (IC Loss) [27].
+Specifically, IC Loss assumes that each sample has a single label, an assumption that breaks when mixup augmentation [35] generates samples with mixed labels.
+SoftIC accounts for the class-specific weights introduced by mixup, enabling more effective learning under imbalanced conditions.
+Following this line of research, Xu et al. proposed the Multi-Scale Attention GSM (MSAGSM) [88], which addresses a key limitation of the original GSM—its ability to shift only between adjacent
+
+[page 14]
+frame features.
+MSAGSM extends this by enabling feature shifting across longer temporal windows.
+To improve efficiency, the authors argue that most visual features in sports videos correspond to the background and do not require shifting.
+They therefore introduce a channel-group attention mechanism that selectively emphasizes informative regions before shifting, enhancing both effi- ciency and performance.
+A noted limitation of this approach is its sensitivity to hyperparameters, as the optimal temporal shifting range can vary across different sports.
+Overall, frame-aware methods represent the latest and most effective approaches for addressing the PES task.
+Their key advantage lies in the ability to perform true frame-level classification, en- abling precise temporal localization.
+In contrast to pooling- and encoder-based approaches—which primarily adapt architectures from generic video understanding—frame-aware methods are specifi- cally designed with the characteristics of sports videos in mind.
+As a result, they currently achieve state-of-the-art performance across multiple sports video event detection benchmarks as shown in Table 2. 3.2.2 Multi-Modal Based Methods.
+Multi-modal approaches extend purely visual modeling by incorporating complementary modalities, most notably audio.
+Acoustic cues—such as whistles, ball strikes, or crowd reactions—often align with event boundaries and provide contextual signals that may not be easily inferred from visual frames alone.
+By fusing modalities, these methods aim to improve robustness and temporal precision in spotting.
+Vanderplaetsen et al.
+[81] conducted one of the earliest systematic studies of audio–visual fusion for soccer event detection.
+They explored early, late, and hybrid fusion strategies for combining audio spectrogram features with visual embeddings.
+Their results indicated that late fusion—where audio and visual streams are processed independently and only combined before the classification stage—yielded the best performance on SoccerNet.
+This suggests that modality-specific encoders are more effective at capturing the unique dynamics of each signal, and that overly tight integration (e.g., at the feature extraction stage) may introduce noise.
+Building on this direction, Xarles et al.
+[86] proposed ASTRA, a Transformer-based encoder–decoder architecture designed to jointly process audio and visual embeddings.
+Instead of simple concatena- tion, ASTRA introduces learnable cross-modal queries within a multi-head attention framework, enabling the model to adaptively focus on relevant cues from both streams.
+For instance, whistles or spikes in crowd noise are aligned with frame-level video representations, allowing the model to highlight ambiguous moments such as fouls or missed shots.
+This cross-modal reasoning enabled ASTRA to achieve strong performance on SoccerNet, underscoring the potential of attention-based fusion for sports event detection.
+Although multi-modal integration represents a promising research direction, it currently faces several practical challenges.
+Most available sports datasets contain limited or weakly informative audio, restricting the effectiveness of models that rely on cross-modal signals.
+Furthermore, in semi-professional, Paralympic, or amateur settings, multiple games are often played simultaneously in shared venues, leading to significant background noise and cross-contamination across matches.
+In such cases, audio cues may not only provide little benefit but can actively degrade performance if not properly filtered.
+Consequently, while multi-modal models demonstrate clear advantages under curated broadcast conditions, broader adoption in real-world sports analytics will require improved datasets, robust denoising techniques, and adaptive mechanisms to handle inconsistent or noisy audio streams. 3.2.3 Other Models.
+Despite recent advances, a persistent bottleneck for both AS and PES remains the reliance on large-scale annotated datasets, which are costly and time-consuming to produce.
+This has motivated research into strategies that reduce annotation requirements or exploit unlabeled data more effectively.
+
+[page 15]
+Giancola et al.
+[25] proposed the first active learning framework for action spotting to address this challenge.
+Their pipeline begins with a baseline model trained on a small labeled subset of SoccerNet.
+The model is then applied to unlabeled videos, producing predictions that are ranked by uncertainty using entropy- and confidence-based heuristics.
+The most informative samples are selected for manual annotation and iteratively added back into the training pool.
+This process prioritizes labeling clips that provide the highest information gain, reducing redundant annotation.
+Experiments demonstrated that their framework achieved competitive results with only one-third of the labeled data required by fully supervised baselines, highlighting the potential of active learning to lower annotation costs in large-scale sports datasets.
+However, the method still depends on repeated human-in-the-loop annotation cycles, which may limit scalability for rapidly expanding datasets or sports with highly diverse event taxonomies.
+More recently, Denize et al. introduced COMEDIAN [12], the first AS-specific framework to unify self-supervised learning (SSL) and knowledge distillation (KD) for pretraining spatiotemporal Transformers.
+The architecture separates modeling into two components: a spatial transformer that captures short-range local context within clips and a temporal transformer that encodes long-range dynamics across sequences.
+For SSL, the spatial branch is trained with Momentum Contrast (MoCo) [30], encouraging robust representations across temporally adjacent clips.
+Simultaneously, a Soft Contrastive Loss (SCE) [13] distills knowledge from a feature bank generated by a large pre-trained video model, transferring semantic richness into the AS framework.
+After this pretraining stage, the model is fine-tuned with labeled data for the AS task, yielding state-of-the-art performance on SoccerNet-v2 while requiring significantly fewer annotations.
+This demonstrates the promise of combining SSL and KD to bootstrap event spotting models from unlabeled video corpora.
+These methods highlight an emerging shift towards data-efficient learning in AS and PES.
+Active learning frameworks reduce annotation redundancy by selectively labeling the most informative clips, while SSL + KD approaches leverage vast amounts of unlabeled video to pretrain strong repre- sentations.
+However, challenges remain: active learning pipelines are still annotation-intensive and require careful design of selection heuristics, while SSL and KD approaches are heavily dependent on the choice of pre-trained models and may inherit their biases.
+Furthermore, the diversity of sports poses an additional barrier, as strategies effective in soccer may not directly transfer to domains with scarcer data or different event semantics.
+Nevertheless, reducing annotation reliance remains a crucial step toward scaling PES systems to broader sports contexts, particularly outside well-curated professional broadcast datasets.
+Datasets Datasets play a critical role in supervised deep learning, providing the foundation for both model training and evaluation.
+Transformer-based architectures [2, 15, 51] are particularly data-dependent, often requiring large-scale, high-quality datasets to achieve strong generalization.
+However, annotat- ing sports videos remains a time-intensive and expertise-driven process.
+For example, distinguishing between different serve types in table tennis or tennis can be highly challenging due to subtle motion variations and the high speed of play [85].
+Consequently, high-quality, precisely annotated datasets are especially valuable, as sports actions often exhibit limited generalization across different contexts.
+In this section, we review publicly available sports-related datasets commonly used for event detection, grouping them by sport genre.
+For each dataset, we provide a detailed description and discuss its current limitations.
+A summary of these datasets is presented in Table 3.
+
+[page 16]
+Table 3.
+Overview of sports-related datasets for event detection.
+Spotting denotes precise frame-level annota- tions, while Interval annotations specify action start and end times.
+Dataset Sport Year Size / Duration Annotation Type Categories / Events SoccerNet [24] Soccer 500 videos / 764 hrs Spotting 3 (goals, cards, substitutions) SSET [19] Soccer 350 videos / 282 hrs Interval 11 event types, 15 story types SoccerDB [40] Soccer 346 videos / 669 hrs Interval SoccerNet-v2 [11] Soccer 500 videos / 764 hrs Spotting 17 event classes SoccerNet Ball AS [9] Soccer 7 videos Spotting 12 ball-action events Tenniset [17] Tennis 5 videos Interval Tennis [34] Tennis 3,345 clips Spotting 6 (court-specific ball contacts) OpenTTGames [84] Table Tennis 12 videos Spotting P2A [3] Table Tennis 2,721 videos / 272 hrs Interval 14 fine-grained / 8 high-level stroke classes TTA [88] Table Tennis 39 videos Spotting NCAA [59] Basketball 257 videos / 1.5 hrs each Interval 14 (e.g., 3-point, dunk, steal) Badminton Olympic [22] Badminton 27 videos Interval Figure Skating [33] Figure Skating 2021 11 videos Interval 4 transitions FineDiving [90] Diving 300 videos Interval 52 key pose transitions FineGym [64] Gymnastics 5,374 videos Spotting 32 fine-grained actions MCFS [50] Figure Skating 2021 11,656 segments / 17.3 hrs Interval 130 across 4 event sets Soccer SoccerNet-V1 [24] was the first large-scale benchmark for sports video analysis, covering multiple tasks including event detection.
+It contains 500 full-match broadcasts (764 hours, 4TB) from major European championships (2015–2017).
+Events are annotated from official match reports with one- second resolution for three event types.
+While it supports both AS and PES tasks—for example, the “card” label marks the moment a referee issues a booking—the coarse and ambiguous one-second annotations limit temporal precision.
+As a result, most early methods developed on SoccerNet-V1 focused on AS rather than PES.
+SSET [19] is a smaller dataset relative to SoccerNet, containing 350 videos covering multiple soccer games, totaling 282 hours.
+It defines 11 event types and 15 story types.
+Designed primarily for TAL, its event annotations are interval-based.
+For instance, a "kick" event is annotated from the moment a key player prepares to kick until the ball lands or exits the field.
+SoccerDB [40] contains 346 high-quality soccer match videos, incorporating 270 matches from SoccerNet and 76 matches from the Chinese Super League (2017–2018) and FIFA World Cup editions.
+The dataset occupies 1.4TB and has a total duration of 668.6 hours.
+It defines 10 soccer event types with clear temporal boundaries, making it highly suitable for event detection tasks.
+SoccerNet-v2 [11] extends SoccerNet by expanding the number of action classes from 3 to 17, introducing more detailed events such as “Foul,” “Throw-in,” and “Shot on target.” The most significant change compared to SoccerNet-V1 is that each event is annotated with a single timestamp rather than a one-second interval.
+In addition, each timestamp is assigned a visibility tag indicating whether the action is explicitly visible or inferred, which introduces further challenges for automated detection.
+This design enables the PES task and also allows evaluation of whether models leverage broader temporal context to understand the game, or merely rely on local spatial cues.
+SoccerNet Ball Action Spotting [9] extended SoccerNet-v2 to focus on fine-grained ball interactions, requiring frame-level precision for frequent events.
+It initially annotated “pass” and “drive” actions across 7 matches (11,041 labels), and was later expanded in 2024 to include 12 ball-related classes, supporting detailed modeling of gameplay flow.
+
+[page 17]
+Racket Sports Tenniset [17] consists of five full-match videos from the 2012 London Olympic Games, sourced from YouTube.
+It defines six event types, such as "set," "hit," and "serve," annotated with precise temporal intervals.
+In addition, Tenniset provides textual descriptions of actions, such as "quick serve is an ace," enabling multimodal learning that combines video and text modalities.
+The Tennis dataset [34], built upon the Vid2Player dataset [94], comprises 3,345 video clips from 28 professional tennis matches recorded at 25 or 30 FPS.
+Events are categorized into six classes, including "player serve ball contact," "regular swing ball contact," and "ball bounce," further divided based on court side (near or far court).
+The dataset supports fine-grained action spotting in tennis and facilitates evaluation under strict temporal precision settings.
+OpenTTGames [84] consists of 12 high-definition table tennis matches recorded at 120 FPS, containing 4,271 labeled events.
+The dataset defines three event types—ball bounces, net hits, and empty events—all annotated with frame-level precision.
+OpenTTGames is particularly suited for training models on bounce detection under high-speed gameplay conditions.
+P2A [3] is a large-scale table tennis dataset comprising 2,721 broadcast videos (272 hours) from major tournaments.
+It includes 14 fine-grained stroke classes grouped into 8 higher-level action categories, with frame-level annotations validated by professionals, making it one of the most comprehensive stroke-level benchmarks.
+TTA [88] represents the latest table tennis PES benchmark, consisting of 39 para-professional matches.
+Unlike broadcast-only datasets, TTA captures real-world recording conditions with non- ideal camera angles, frequent occlusions, and less controlled environments.
+It is the first benchmark to target PES in para-sport contexts, making it highly relevant for practical and inclusive sports analytics.
+Badminton Olympic [22] contains 27 badminton match videos sourced from the official Olympic YouTube channel.
+It includes time-interval annotations for 12 action types, such as "serve," "back- hand," and "smash," as well as point-level annotations, making it suitable for both action spotting and match-level analysis.
+BadmintonTrack [71] is another badminton dataset, comprising 77,000 annotated frames from 26 unique singles matches filmed from an overhead broadcast-view camera.
+Originally, timestamp information indicating when a player struck the shuttlecock was included [49], although this metadata has since been removed in updated versions.
+Other Sports NCAA [59] consists of 257 untrimmed college basketball game videos, each approximately 1.5 hours long.
+The dataset provides 14,548 video segments, with precise start and end times for 14 action categories, supporting temporal action localization tasks.
+The Figure Skating dataset [33] contains 11 videos recorded at 25 FPS, featuring 371 short program performances from the 2010–2018 Winter Olympics and the 2017–2019 World Champi- onships.
+It defines four transition event types critical for evaluating temporal precision in figure skating analysis.
+FineDiving [90] comprises 300 professional diving videos collected from major international competitions, including the Olympics, World Cup, and World Championships.
+It defines 52 fine- grained action types, 29 sub-action types, and 23 difficulty levels, making it a comprehensive benchmark for procedural action quality assessment.
+Although the original annotations were designed for action quality evaluation rather than temporal spotting, Hong et al.
+[34] later adapted the dataset to support the PES task by refining frame-level event annotations.
+
+[page 18]
+FineGym [64] provides 5,374 gymnastics performances from international competitions.
+Each video is annotated with a hierarchical structure categorizing 32 spotting classes, covering disciplines such as balance beam and floor exercise, enabling fine-grained action spotting and classification.
+MCFS [50] is a large-scale figure skating dataset comprising 11,656 video segments across 38 competitions, totaling 17.3 hours and 1.7 million frames.
+Annotations follow a hierarchical structure of 4 high-level action sets, 22 subsets, and 130 element actions, making MCFS highly suitable for dense temporal action localization tasks in figure skating.
+Limitations A common limitation across most sports datasets is their reliance on professional broadcast footage.
+While such data provide high video quality and consistent coverage, they do not reflect everyday contexts such as semi-professional, youth, para-sport, or amateur matches, where camera placement, video quality, and gameplay dynamics differ substantially.
+Consequently, models trained on these datasets may struggle to generalize or transfer effectively to less controlled, real-world scenarios.
+Evaluation Metrics Sports video event detection employs different evaluation metrics depending on the task—TAL, AS, or PES—each measuring distinct aspects of temporal localization and classification.
+For detailed mathematical derivations, readers are referred to the Supplementary Materials.
+Mean Average Precision (mAP@T-IoU) For TAL, the standard evaluation metric is mean Average Precision computed with temporal Intersection over Union thresholds (mAP@T-IoU).
+Predictions are considered true positives if their Temporal IoU (T-IoU) with the ground truth exceeds a given threshold.
+Precision = 𝑇𝑃 𝑇𝑃+ 𝐹𝑃, Recall = 𝑇𝑃 Total GT, (1) T-IoU = |𝐼𝑝∩𝐼𝑔| |𝐼𝑝∪𝐼𝑔|, (2) where 𝐼𝑝and 𝐼𝑔denote the predicted and ground-truth temporal intervals, respectively.
+Average Precision (AP) is computed for each class, and mAP is calculated by averaging across all classes: mAP = 1 𝐶 𝐶 ∑︁ 𝑐=1 AP𝑐.
+(3) where 𝐶is the total number of action classes and AP𝑐is the Average Precision computed for the 𝑐th class.
+Though standard, mAP is highly sensitive to T-IoU thresholds and may overly penalize minor misalignments in sports scenarios with ambiguous boundaries.
+AR@AN and AUC For TAPG, AR@AN evaluates how many ground-truth segments are recovered given a fixed number of proposals per video.
+The Area Under the Curve (AUC) measures average recall across varying proposal counts: AUC = ∫𝑁 AR(𝑛) 𝑑𝑛.
+(4)
+
+[page 19]
+where AR(𝑛) is the average recall when using 𝑛proposals, and 𝑁is the maximum number of proposals considered.
+These metrics emphasize proposal coverage but ignore redundancy and precision.
+Tolerance Windows and mAP@𝛿 For AS and PES, mAP is the primary evaluation metric.
+It is computed under a temporal tolerance window 𝛿around the ground-truth timestamp (e.g., 𝛿= 5–60 frames for AS, 𝛿= 0–2 frames for PES).
+This is denoted as mAP@𝛿to distinguish it from mAP@T-IoU used in TAL.
+AP is computed per class by first ranking predictions according to confidence scores and then in- tegrating the resulting Precision–Recall (PR) curve.
+Formally, for class 𝑐with 𝑁𝑐ranked predictions, AP is given by: AP𝛿 𝑐= 𝑁𝑐 ∑︁ 𝑖=1  Rec𝑐(𝑖) −Rec𝑐(𝑖−1) Prec𝑐(𝑖), (5) where Prec𝑐(𝑖) and Rec𝑐(𝑖) denote the precision and recall after considering the top-𝑖predictions.
+The overall mean Average Precision is then obtained by averaging over all classes: mAP@𝛿= 1 𝐶 𝐶 ∑︁ 𝑐=1 AP𝛿 𝑐.
+(6) Limitation.
+A key limitation of mAP@𝛿in the PES setting is that contradictory predictions at the same frame are not consistently penalized.
+In practice, prediction thresholds are often set very low (e.g., 0.1), which allows multiple classes to be retained for a single frame.
+Since AP is computed independently per class, any extra prediction for a class with no ground-truth events in that sequence is simply ignored rather than counted as a false positive.
+Moreover, evaluation toolkits handle this situation inconsistently: some exclude classes with no ground-truth from the mAP average (so spurious predictions have no effect), while others assign them an AP of zero (which penalizes the model).
+This inconsistency makes reported mAP scores difficult to interpret and compare across implementations.
+For example, consider a table tennis frame 𝑥annotated only as stroke (𝑦𝑠𝑡𝑟𝑜𝑘𝑒(𝑥) = 1, 𝑦𝑠𝑒𝑟𝑣𝑒(𝑥) = 0).
+Suppose the model outputs: ˆ𝑝𝑠𝑡𝑟𝑜𝑘𝑒(𝑥) = 0.3, ˆ𝑝𝑠𝑒𝑟𝑣𝑒(𝑥) = 0.4.
+In AP computation: - For the stroke class, ˆ𝑝𝑠𝑡𝑟𝑜𝑘𝑒(𝑥) is matched to the ground truth and counted as a true positive. - For the serve class, since there are no ground-truth serve events in this sequence, ˆ𝑝𝑠𝑒𝑟𝑣𝑒(𝑥) is ignored; it does not enter into the precision–recall calculation and is not treated as a false positive.
+As a result, AP𝑠𝑡𝑟𝑜𝑘𝑒= 1, AP𝑠𝑒𝑟𝑣𝑒is excluded or left unaffected.
+The overall mAP remains artificially high despite the contradictory prediction (stroke + serve) at the same frame.
+This behavior stems from the metric’s multi-label origins and favors over-predictive systems, even though in sports domains only one event can occur per timestamp.
+Proposed Modification.
+We recommend stricter benchmarking protocols that enforce top-1 filtering, where only the highest-scoring class is retained per frame, and compute AP by sweep- ing over confidence thresholds rather than ranking predictions.
+This approach penalizes extra predictions and provides an evaluation that more faithfully reflects real deployment requirements.
+Top-1 per frame.
+For each frame 𝑓, with class scores 𝑠𝑓,𝑐: ˆ𝑐𝑓= arg max 𝑐 𝑠𝑓,𝑐, ˆ𝑠𝑓= max 𝑐 𝑠𝑓,𝑐.
+
+[page 20]
+AP via threshold sweep.
+With top-1 filtering applied, each frame contributes at most one prediction.
+Varying the confidence threshold 𝜏from high to low traces the PR curve in the standard way.
+The AP for class 𝑐is then: AP𝛿 𝑐= 𝐾 ∑︁ 𝑘=1  Rec𝑐(𝜏𝑘) −Rec𝑐(𝜏𝑘+1) Prec𝑐(𝜏𝑘), where 𝜏1 > 𝜏2 > · · · > 𝜏𝐾are the distinct confidence thresholds (or a fixed grid).
+Final metric. mAP@𝛿= 1 𝐶 𝐶 ∑︁ 𝑐=1 AP𝛿 𝑐.
+This stricter protocol (i) enforces one class per frame, (ii) penalizes over-prediction, and (iii) evaluates recall effectiveness by integrating precision over confidence thresholds instead of intra- frame ranking.
+Practical Applications Sports video event detection enables practical benefits across media, performance analysis, and athlete health.
+By structuring raw footage into meaningful events, these systems support highlight generation, tactical evaluation, efficient video processing, and injury prevention.
+The following subsections outline key applications.
+A summary of areas covered in this section is shown in Figure 9.
+Video Event Detection Auto Highlight Generation  Sports Data Analysis Sports Injury Preventation Downstream Video Tasks Fig. 9.
+Overview of practical applications enabled by sports video event detection.
+Automatic Game Highlight Generation By automatically detecting key moments such as goals, fouls, or ball bounces, event detection facilitates efficient content indexing and retrieval [9].
+Broadcasters and media platforms can then generate highlight reels in real time, reducing manual effort while ensuring that audiences capture all significant events.
+This capability is especially valuable for large-scale tournaments, where vast amounts of footage must be processed quickly and accurately.
+Sports Video Data Analysis Another major application is performance analysis for athletes and coaches.
+Automated detection of fine-grained events, such as specific strokes in racket sports or tactical plays in team sports, enables precise breakdowns of strategies and player behaviors.
+Recording points won and linking them to the events that caused them is also critical for tactical analysis.
+These insights allow coaches to
+
+[page 21]
+deliver targeted feedback, while athletes benefit from real-time, data-driven evaluations that can be provided during breaks in a match.
+Efficient Video Handling for Downstream Tasks Beyond direct applications, event detection also serves as an efficient preprocessing step for other computer vision tasks.
+Instead of processing entire matches frame by frame, detected events can act as temporal anchors that highlight only the most informative segments.
+For example, rather than tracking the ball continuously throughout a match, tracking algorithms can be applied only around bounce events where precision matters most.
+Similarly, action recognition systems can be guided by event detectors to focus on short clips surrounding serves, enabling more accurate classification of serve types without excessive computation.
+This targeted handling of video data not only reduces processing costs but also improves the effectiveness of downstream tasks such as player behavior analysis, tactical modeling, and strategy discovery.
+Injury Prevention and Workload Monitoring Event detection can also play an important role in safeguarding athlete health.
+By recognizing repetitive micro-events such as jumps, sprints, or strokes, systems can automatically quantify training and match workloads.
+This information provides sports scientists and medical staff with objective measures of player exertion, helping to prevent overuse injuries.
+For example, detecting abnormal movement patterns or sudden increases in workload can serve as early warning signals for potential injuries.
+Furthermore, long-term monitoring of event-level data enables personalized training programs, ensuring that athletes maintain peak performance while minimizing health risks.
+Such applications are particularly valuable in elite sports, where even small improvements in injury prevention can have significant impacts on team success and athlete longevity.
+Challenges and Future Directions In this section, we critically examine current challenges in sports event detection and outline specific, actionable future research directions to address these limitations.
+Generalization Across Diverse Sports While many AS and PES models achieve strong results within individual sports—particularly soccer, given the scale of SoccerNet-V1 and SoccerNet-V2—they often rely heavily on domain-specific visual and contextual cues such as camera angles, common action semantics, and gameplay structure.
+This reliance limits transferability to sports with different visual dynamics, motion patterns, and temporal scales.
+A core limitation in current approaches is the dependence on backbone architectures originally developed for image classification or coarse-grained action recognition.
+These architectures typically process video in fixed-length chunks and aggregate features spatially and temporally, which suppresses subtle frame-level distinctions crucial for spotting tasks.
+In contrast, PES requires temporally fine-grained representations that can capture minimal variations between adjacent frames—such as a foot making contact with a ball or a player crossing a boundary line.
+To improve generalization and robustness, future work should prioritize frame-level representa- tion learning tailored to the demands of spotting tasks.
+Promising directions include: • Developing encoders that preserve local temporal granularity, using lightweight 1D CNNs, temporal contrastive learning, or frame-attentive modules to enhance discriminative capacity. • Leveraging multimodal pretraining (e.g., CLIP [57]) to align visual, textual, and audio cues into semantically rich frame embeddings suitable for cross-sport transfer.
+
+[page 22]
+• Exploring adaptive frame sampling strategies that focus representational capacity on moments of high temporal importance, improving both efficiency and localization accuracy.
+By enhancing frame-wise representation learning, future AS and PES models will be better equipped to generalize across diverse sports scenarios, achieving higher temporal precision while reducing reliance on domain-specific heuristics.
+Unsupervised and Low-Supervision Methods Creating large-scale labeled datasets for sports event detection is costly, labor-intensive, and often requires expert knowledge, particularly in technical sports such as gymnastics, tennis, and figure skating.
+To mitigate these barriers, recent work has explored low-supervision paradigms such as knowledge distillation and active learning [12, 25], which reduce reliance on extensive annotations by transferring knowledge from pretrained models or selectively labeling the most informative samples.
+Fully unsupervised and self-supervised approaches, however, remain in their infancy.
+Future research directions include: • Designing self-supervised frameworks that exploit temporal consistency, contrastive objec- tives, or multimodal alignment to learn meaningful event representations from unlabeled or weakly labeled sports videos. • Combining unsupervised learning with domain adaptation to improve generalization across sports with diverse visual dynamics and gameplay structures.
+Advancing in these directions will be critical for building scalable, efficient, and widely applicable event detection models, especially in sports where annotations are scarce or costly.
+Enhanced Multimodal Fusion Approaches Although most existing AS and PES methodologies rely primarily on visual data, audio cues can substantially enrich the detection of critical events in sports, as demonstrated by [86].
+Examples include ball impact sounds, crowd reactions, or figure skaters landing on ice—all of which provide complementary temporal signals.
+Current multimodal models largely adopt simple fusion strategies, such as concatenation or late fusion [81, 86], which fail to capture the complex interactions between modalities.
+Moreover, in many general-level sports, audio data is often unavailable or dominated by noise (e.g., background music or commentary), unlike in elite-level broadcasts where clean signals are more common.
+To overcome these limitations, future research should explore more advanced fusion techniques and robust noise-handling strategies. • Attention-based cross-modal transformers and gated attention mechanisms that dynamically weight and integrate audio–visual cues. • Modality-specific encoders combined with temporal alignment mechanisms to capture precise event timings in noisy or visually ambiguous settings. • Leveraging commentary audio through automatic speech recognition and natural language processing to provide additional semantic context and weak supervision signals, aligning spoken descriptions with visual events. • Noise-robust feature extraction and denoising strategies to improve the reliability of audio cues in non-professional or crowd-sourced sports footage.
+Advancing multimodal fusion methodologies represents a key opportunity to enhance the accuracy, robustness, and practical applicability of AS and PES systems in sports video analytics.
+
+[page 23]
+Real-World Applications: Gaps in Datasets and Evaluation Protocols Despite impressive progress in AS and PES research, a substantial gap remains between academic benchmarks and real-world deployment.
+Most existing datasets are curated from professional broadcasts, captured with high-quality cameras, ideal lighting, and fixed angles.
+While this consis- tency supports reliable annotations and evaluation, it fails to reflect the realities faced by analysts, coaches, and practitioners outside elite or televised contexts.
+At amateur or semi-professional levels, footage is often self-recorded using handheld devices or static single-angle setups under suboptimal conditions, where models trained on curated datasets may struggle to generalize.
+Evaluation protocols present similar limitations.
+Current benchmarks often compute mean mAP with low confidence thresholds (e.g., 0.1), which allows multiple class predictions per frame.
+In PES, however, a single frame almost never contains more than one event.
+While multi-label predictions boost recall and improve mAP scores, they provide an inflated view of performance and are misaligned with practical needs.
+This issue is especially evident in racket sports, where only one event (e.g., hit or bounce) can occur at a given time, and over-prediction directly reduces usefulness for tasks like rule enforcement or tactical feedback.
+To bridge these gaps, future work should: • Create and evaluate datasets recorded in unconstrained, real-world environments to ensure robustness beyond broadcast-quality footage. • Establish evaluation protocols that penalize over-prediction and reward frame-level dis- criminability, such as top-1 class selection or calibrated confidence thresholds aligned with deployment requirements. • Release datasets spanning diverse venues, competition levels, and camera setups to reduce domain gaps between research and practice.
+Closing these gaps is essential for building AS and PES systems that are not only accurate on benchmarks but also reliable, efficient, and trustworthy in practice.
+Conclusion In this survey, we reviewed deep learning-based methods, datasets, and evaluation protocols for video event detection, with a particular focus on TAL, AS, and PES in sports analytics.
+We highlighted several key challenges, including evaluation protocols that do not fully account for multiple predictions, the underrepresentation of datasets covering the broader sports community, the limited generalizability of methods across different sports, the heavy reliance on extensive annotations, and the underutilization of multimodal cues.
+To address these gaps, future research should emphasize frame-level models with task-specific backbones, robust cross-sport evaluation, and scalable learning paradigms such as self-supervised and active learning.
+Incorporating multimodal signals—including visual, audio, and text—also has strong potential to enhance temporal precision and contextual understanding.
+Addressing these challenges will pave the way for more accurate, generalizable, and efficient sports video event detection systems.
+References [1] Relja Arandjelovic, Petr Gronat, Akihiko Torii, Tomas Pajdla, and Josef Sivic. 2016.
+NetVLAD: CNN architecture for weakly supervised place recognition.
+In Proceedings of the IEEE conference on computer vision and pattern recognition.
+IEEE, Las Vegas, 5297–5307.
+[2] Anurag Arnab, Mostafa Dehghani, Georg Heigold, Chen Sun, Mario Lučić, and Cordelia Schmid. 2021.
+Vivit: A video vision transformer.
+In Proceedings of the IEEE/CVF international conference on computer vision.
+IEEE, Montreal, 6836–6846.
+
+[page 24]
+[3] Jiang Bian, Xuhong Li, Tao Wang, Qingzhong Wang, Jun Huang, Chen Liu, Jun Zhao, Feixiang Lu, Dejing Dou, and Haoyi Xiong. 2024.
+P2ANet: a large-scale benchmark for dense action detection from table tennis match broadcasting videos.
+ACM Transactions on Multimedia Computing, Communications and Applications 20, 4 (2024), 1–23.
+[4] Fabian Caba Heilbron, Victor Escorcia, Bernard Ghanem, and Juan Carlos Niebles. 2015.
+Activitynet: A large-scale video benchmark for human activity understanding.
+In Proceedings of the ieee conference on computer vision and pattern recognition. 961–970.
+[5] Mengqi Cao, Min Yang, Guozhen Zhang, Xiaotian Li, Yilu Wu, Gangshan Wu, and Limin Wang. 2022.
+SpotFormer: A transformer-based framework for precise soccer action spotting.
+In 2022 IEEE 24th International Workshop on Multimedia Signal Processing (MMSP).
+IEEE, Shanghai, 1–6.
+[6] Joao Carreira and Andrew Zisserman. 2017.
+Quo vadis, action recognition? a new model and the kinetics dataset.
+In proceedings of the IEEE Conference on Computer Vision and Pattern Recognition.
+IEEE, Hawaii, 6299–6308.
+[7] Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio. 2014.
+Empirical evaluation of gated recurrent neural networks on sequence modeling. arXiv preprint arXiv:1412.3555 (2014).
+[8] Anthony Cioppa, Adrien Deliege, Silvio Giancola, Bernard Ghanem, Marc Van Droogenbroeck, Rikke Gade, and Thomas B Moeslund. 2020.
+A context-aware loss function for action spotting in soccer videos.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition.
+IEEE, Seattle, 13126–13136.
+[9] Anthony Cioppa, Silvio Giancola, Vladimir Somers, Floriane Magera, Xin Zhou, Hassan Mkhallati, Adrien Deliège, Jan Held, Carlos Hinojosa, Amir M Mansourian, et al. 2024.
+SoccerNet 2023 challenges results.
+Sports Engineering 27, 2 (2024), 24.
+[10] Abdulrahman Darwish and Tallal El-Shabrway. 2022.
+STE: Spatio-temporal encoder for action spotting in soccer videos.
+In Proceedings of the 5th International ACM Workshop on Multimedia Content Analysis in Sports.
+ACM, Dublin, 87–92.
+[11] Adrien Deliege, Anthony Cioppa, Silvio Giancola, Meisam J Seikavandi, Jacob V Dueholm, Kamal Nasrollahi, Bernard Ghanem, Thomas B Moeslund, and Marc Van Droogenbroeck. 2021.
+Soccernet-v2: A dataset and benchmarks for holistic understanding of broadcast soccer videos.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+IEEE, Virtual, 4508–4519.
+[12] Julien Denize, Mykola Liashuha, Jaonary Rabarisoa, Astrid Orcesi, and Romain Hérault. 2024.
+COMEDIAN: Self- supervised learning and knowledge distillation for action spotting using transformers.
+In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision.
+IEEE, Hawaii, 530–540.
+[13] Julien Denize, Jaonary Rabarisoa, Astrid Orcesi, and Romain Hérault. 2023.
+Similarity contrastive estimation for image and video soft contrastive self-supervised learning.
+Machine Vision and Applications 34, 6 (2023), 111.
+[14] Carlo Dindorf, Eva Bartaguiz, Freya Gassmann, and Michael Fröhlich. 2022.
+Conceptual structure and current trends in artificial intelligence, machine learning, and deep learning research in sports: a bibliometric review.
+International Journal of Environmental Research and Public Health 20, 1 (2022), 173.
+[15] Alexey Dosovitskiy. 2020.
+An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 (2020).
+[16] Daniel Etaat, Dvij Kalaria, Nima Rahmanian, and Shankar Sastry. 2025.
+LATTE-MV: Learning to Anticipate Table Tennis Hits from Monocular Videos. arXiv preprint arXiv:2503.20936 (2025).
+[17] Hayden Faulkner and Anthony Dick. 2017.
+Tenniset: A dataset for dense fine-grained event recognition, localisation and description.
+In 2017 International Conference on Digital Image Computing: Techniques and Applications (DICTA).
+IEEE, 1–8.
+[18] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and Kaiming He. 2019.
+Slowfast networks for video recognition.
+In Proceedings of the IEEE/CVF international conference on computer vision. 6202–6211.
+[19] Na Feng, Zikai Song, Junqing Yu, Yi-Ping Phoebe Chen, Yizhu Zhao, Yunfeng He, and Tao Guan. 2020.
+SSET: a dataset for shot segmentation, event detection, player tracking in soccer videos.
+Multimedia Tools and Applications 79 (2020), 28971–28992.
+[20] Jiyang Gao, Kan Chen, and Ram Nevatia. 2018.
+Ctap: Complementary temporal action proposal generation.
+In Proceedings of the European conference on computer vision (ECCV). 68–83.
+[21] Jiyang Gao, Zhenheng Yang, Kan Chen, Chen Sun, and Ram Nevatia. 2017.
+Turn tap: Temporal unit regression network for temporal action proposals.
+In Proceedings of the IEEE international conference on computer vision. 3628–3636.
+[22] Anurag Ghosh, Suriya Singh, and CV Jawahar. 2018.
+Towards structured analysis of broadcast badminton videos.
+In 2018 IEEE Winter Conference on Applications of Computer Vision (WACV).
+IEEE, 296–304.
+[23] Indrajeet Ghosh, Sreenivasan Ramasamy Ramamurthy, Avijoy Chakma, and Nirmalya Roy. 2023.
+Sports analytics review: Artificial intelligence applications, emerging technologies, and algorithmic perspective.
+Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery 13, 5 (2023), e1496.
+[24] Silvio Giancola, Mohieddine Amine, Tarek Dghaily, and Bernard Ghanem. 2018.
+Soccernet: A scalable dataset for action spotting in soccer videos.
+In Proceedings of the IEEE conference on computer vision and pattern recognition workshops.
+
+[page 25]
+1711–1721.
+[25] Silvio Giancola, Anthony Cioppa, Julia Georgieva, Johsan Billingham, Andreas Serner, Kerry Peek, Bernard Ghanem, and Marc Van Droogenbroeck. 2023.
+Towards active learning for action spotting in association football videos.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 5098–5108.
+[26] Silvio Giancola and Bernard Ghanem. 2021.
+Temporally-aware feature pooling for action spotting in soccer broadcasts.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition.
+IEEE, 4490–4499.
+[27] Jiaming Han, Yuqiang Ren, Jian Ding, Xingjia Pan, Ke Yan, and Gui-Song Xia. 2022.
+Expanding Low-Density Latent Regions for Open-Set Object Detection.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR).
+IEEE, New Orleans.
+[28] Kensho Hara, Hirokatsu Kataoka, and Yutaka Satoh. 2017.
+Learning spatio-temporal features with 3d residual networks for action recognition.
+In Proceedings of the IEEE international conference on computer vision workshops. 3154–3160.
+[29] Bo He, Xitong Yang, Zuxuan Wu, Hao Chen, Ser-Nam Lim, and Abhinav Shrivastava. 2020.
+Gta: Global temporal attention for video action understanding. arXiv preprint arXiv:2012.08510 (2020).
+[30] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. 2020.
+Momentum contrast for unsupervised visual representation learning.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 9729–9738.
+[31] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. 2016.
+Deep residual learning for image recognition.
+In Proceedings of the IEEE conference on computer vision and pattern recognition. 770–778.
+[32] Yuchen He, Zeqing Yuan, Yihong Wu, Liqi Cheng, Dazhen Deng, and Yingcai Wu. 2024.
+ViSTec: Video Modeling for Sports Technique Recognition and Tactical Analysis. arXiv:2402.15952 [cs.CV] https://arxiv.org/abs/2402.15952 [33] James Hong, Matthew Fisher, Michaël Gharbi, and Kayvon Fatahalian. 2021.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision. 9254–9263.
+[34] James Hong, Haotian Zhang, Michaël Gharbi, Matthew Fisher, and Kayvon Fatahalian. 2022.
+Spotting temporally precise, fine-grained events in video.
+In European Conference on Computer Vision.
+Springer, 33–51.
+[35] Yann N.
+Dauphin David Lopez-Paz Hongyi Zhang, Moustapha Cisse. 2018. mixup: Beyond Empirical Risk Minimization.
+International Conference on Learning Representations (2018). https://openreview.net/forum?id=r1Ddp1-Rb [36] Kristina Host and Marina Ivašić-Kos. 2022.
+An overview of Human Action Recognition in sports based on Computer Vision.
+Heliyon 8, 6 (2022).
+[37] Kai Hu, Chaowen Shen, Tianyan Wang, Keer Xu, Qingfeng Xia, Min Xia, and Chengxue Cai. 2024.
+Overview of temporal action detection based on deep learning.
+Artificial Intelligence Review 57, 2 (2024), 26.
+[38] Yu-Chuan Huang, I-No Liao, Ching-Hsuan Chen, Tsì-Uí İk, and Wen-Chih Peng. 2019.
+Tracknet: A deep learning network for tracking high-speed and tiny objects in sports applications.
+In 2019 16th IEEE International Conference on Advanced Video and Signal Based Surveillance (AVSS).
+IEEE, 1–8.
+[39] Haroon Idrees, Amir R.
+Zamir, Yu-Gang Jiang, Alex Gorban, Ivan Laptev, Rahul Sukthankar, and Mubarak Shah. 2017.
+The THUMOS challenge on action recognition for videos “in the wild”.
+Computer Vision and Image Understanding 155 (Feb. 2017), 1–23. https://doi.org/10.1016/j.cviu.2016.10.018 [40] Yudong Jiang, Kaixu Cui, Leilei Chen, Canjin Wang, and Changliang Xu. 2020.
+SoccerDB: A large-scale database for comprehensive video understanding.
+In Proceedings of the 3rd International Workshop on Multimedia Content Analysis in Sports. 1–8.
+[41] Paresh R Kamble, Avinash G Keskar, and Kishor M Bhurchandi. 2019.
+Ball tracking in sports: a survey.
+Artificial Intelligence Review 52 (2019), 1655–1705.
+[42] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang, Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola, Tim Green, Trevor Back, Paul Natsev, et al. 2017.
+The kinetics human action video dataset. arXiv preprint arXiv:1705.06950 (2017).
+[43] Mukul Kumar and Sandeep Bhalla. 2021.
+Global sports market today: An overview.
+International Journal of Physical Education, Sports and Health 8, 4 (2021), 223–225.
+[44] Christopher Lai, Jason Mo, Haotian Xia, and Yuan-fang Wang. 2024.
+FACTS: Fine-Grained Action Classification for Tactical Sports. arXiv preprint arXiv:2412.16454 (2024).
+[45] Liunian Harold Li, Pengchuan Zhang, Haotian Zhang, Jianwei Yang, Chunyuan Li, Yiwu Zhong, Lijuan Wang, Lu Yuan, Lei Zhang, Jenq-Neng Hwang, et al. 2022.
+Grounded language-image pre-training.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+IEEE, 10965–10975.
+[46] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Mangalam, Bo Xiong, Jitendra Malik, and Christoph Feichtenhofer. 2022.
+Mvitv2: Improved multiscale vision transformers for classification and detection.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+IEEE, 4804–4814.
+[47] Tianwei Lin, Xiao Liu, Xin Li, Errui Ding, and Shilei Wen. 2019.
+Bmn: Boundary-matching network for temporal action proposal generation.
+In Proceedings of the IEEE/CVF international conference on computer vision. 3889–3898.
+
+[page 26]
+[48] Tianwei Lin, Xu Zhao, Haisheng Su, Chongjing Wang, and Ming Yang. 2018.
+Bsn: Boundary sensitive network for temporal action proposal generation.
+In Proceedings of the European conference on computer vision (ECCV). 3–19.
+[49] Paul Liu and Jui-Hsien Wang. 2022.
+MonoTrack: Shuttle trajectory reconstruction from monocular badminton video.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 3513–3522.
+[50] Shenglan Liu, Aibin Zhang, Yunheng Li, Jian Zhou, Li Xu, Zhuben Dong, and Renhao Zhang. 2021.
+Temporal segmentation of fine-gained semantic action: A motion-centered figure skating dataset.
+In Proceedings of the AAAI conference on artificial intelligence, Vol. 35. 2163–2171.
+[51] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo. 2021.
+Swin transformer: Hierarchical vision transformer using shifted windows.
+In Proceedings of the IEEE/CVF international conference on computer vision. 10012–10022.
+[52] Antoine Miech, Ivan Laptev, and Josef Sivic. 2017.
+Learnable pooling with context gating for video classification. arXiv preprint arXiv:1706.06905 (2017).
+[53] Elia Morgulev, Ofer H Azar, and Ronnie Lidor. 2018.
+Sports analytics and the big-data era.
+International Journal of Data Science and Analytics 5 (2018), 213–222.
+[54] Banoth Thulasya Naik, Mohammad Farukh Hashmi, and Neeraj Dhanraj Bokde. 2022.
+A comprehensive review of computer vision in sports: Open issues, future trends and research directions.
+Applied Sciences 12, 9 (2022), 4429.
+[55] Daniel Neimark, Omri Bar, Maya Zohar, and Dotan Asselmann. 2021.
+Video transformer network.
+In Proceedings of the IEEE/CVF international conference on computer vision.
+IEEE, 3163–3172.
+[56] Zhiwu Qing, Haisheng Su, Weihao Gan, Dongliang Wang, Wei Wu, Xiang Wang, Yu Qiao, Junjie Yan, Changxin Gao, and Nong Sang. 2021.
+Temporal context aggregation network for temporal action proposal refinement.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 485–494.
+[57] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. 2021.
+Learning transferable visual models from natural language supervision.
+In International conference on machine learning.
+PmLR, 8748–8763.
+[58] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Dollár. 2020.
+Designing network design spaces.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 10428–10436.
+[59] Vignesh Ramanathan, Jonathan Huang, Sami Abu-El-Haija, Alexander Gorban, Kevin Murphy, and Li Fei-Fei. 2016.
+Detecting events and key actors in multi-person videos.
+In Proceedings of the IEEE conference on computer vision and pattern recognition. 3043–3053.
+[60] Olav A Norgård Rongved, Steven A Hicks, Vajira Thambawita, Håkon K Stensland, Evi Zouganeli, Dag Johansen, Michael A Riegler, and Pål Halvorsen. 2020.
+Real-time detection of events in soccer videos using 3D convolutional neural networks.
+In 2020 IEEE International Symposium on Multimedia (ISM).
+IEEE, 135–144.
+[61] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. 2015.
+U-net: Convolutional networks for biomedical image seg- mentation.
+In Medical image computing and computer-assisted intervention–MICCAI 2015: 18th international conference, Munich, Germany, October 5-9, 2015, proceedings, part III 18.
+Springer, 234–241.
+[62] Sanchayan Santra, Vishal Chudasama, Pankaj Wasnik, and Vineeth N Balasubramanian. 2025.
+Precise Event Spotting in Sports Videos: Solving Long-Range Dependency and Class Imbalance.
+In Proceedings of the Computer Vision and Pattern Recognition Conference.
+IEEE, 3163–3172.
+[63] Karolina Seweryn, Anna Wróblewska, and Szymon Łukasik. 2023.
+Survey of Action Recognition, Spotting and Spatio-Temporal Localization in Soccer–Current Trends and Research Perspectives. arXiv preprint arXiv:2309.12067 (2023).
+[64] Dian Shao, Yue Zhao, Bo Dai, and Dahua Lin. 2020.
+Finegym: A hierarchical video dataset for fine-grained action understanding.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 2616–2625.
+[65] Dingfeng Shi, Yujie Zhong, Qiong Cao, Lin Ma, Jia Li, and Dacheng Tao. 2023.
+Tridet: Temporal action detection with relative boundary modeling.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 18857–18866.
+[66] Yuzhi Shi, Hiroaki Minoura, Takayoshi Yamashita, Tsubasa Hirakawa, Hironobu Fujiyoshi, Mitsuru Nakazawa, Yeong- nam Chae, and Björn Stenger. 2022.
+Action spotting in soccer videos using multiple scene encoders.
+In 2022 26th International Conference on Pattern Recognition (ICPR).
+IEEE, 3183–3189.
+[67] Joao VB Soares, Avijit Shah, and Topojoy Biswas. 2022.
+Temporally precise action spotting in soccer videos using dense detection anchors.
+In 2022 IEEE International Conference on Image Processing (ICIP).
+IEEE, 2796–2800.
+[68] Haisheng Su, Weihao Gan, Wei Wu, Yu Qiao, and Junjie Yan. 2021.
+Bsn++: Complementary boundary regressor with scale-balanced relation modeling for temporal action proposal generation.
+In Proceedings of the AAAI conference on artificial intelligence, Vol. 35. 2602–2610.
+[69] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz. 2020.
+Gate-shift networks for video action recognition.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 1102–1111.
+
+[page 27]
+[70] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz. 2023.
+Gate-shift-fuse for video action recognition.
+IEEE Transactions on Pattern Analysis and Machine Intelligence 45, 9 (2023), 10913–10928.
+[71] Nien-En Sun, Yu-Ching Lin, Shao-Ping Chuang, Tzu-Han Hsu, Dung-Ru Yu, Ho-Yi Chung, and Tsì-Uí İk. 2020.
+Tracknetv2: Efficient shuttlecock tracking network.
+In 2020 International Conference on Pervasive Artificial Intelligence (ICPAI).
+IEEE, 86–91.
+[72] Shuhei Tarashima, Muhammad Abdul Haq, Yushan Wang, and Norio Tagawa. 2023.
+Widely Applicable Strong Baseline for Sports Ball Detection and Tracking. arXiv preprint arXiv:2311.05237 (2023).
+[73] Graham Thomas, Rikke Gade, Thomas B Moeslund, Peter Carr, and Adrian Hilton. 2017.
+Computer vision for sports: Current applications and research topics.
+Computer Vision and Image Understanding 159 (2017), 3–18.
+[74] Matteo Tomei, Lorenzo Baraldi, Simone Calderara, Simone Bronzin, and Rita Cucchiara. 2021.
+Rms-net: Regression and masking for soccer event spotting.
+In 2020 25th International Conference on Pattern Recognition (ICPR).
+IEEE, 7699–7706.
+[75] Zhan Tong, Yibing Song, Jue Wang, and Limin Wang. 2022.
+Videomae: Masked autoencoders are data-efficient learners for self-supervised video pre-training.
+Advances in neural information processing systems 35 (2022), 10078–10093.
+[76] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri. 2015.
+Learning spatiotemporal features with 3d convolutional networks.
+In Proceedings of the IEEE international conference on computer vision.
+IEEE, 4489–4497.
+[77] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri. 2015.
+Learning Spatiotemporal Features with 3D Convolutional Networks. arXiv:1412.0767 [cs.CV] https://arxiv.org/abs/1412.0767 [78] Du Tran, Heng Wang, Lorenzo Torresani, and Matt Feiszli. 2019.
+Video classification with channel-separated convolu- tional networks.
+In Proceedings of the IEEE/CVF international conference on computer vision. 5552–5561.
+[79] Du Tran, Heng Wang, Lorenzo Torresani, Jamie Ray, Yann LeCun, and Manohar Paluri. 2018.
+A closer look at spatiotemporal convolutions for action recognition.
+In Proceedings of the IEEE conference on Computer Vision and Pattern Recognition.
+IEEE, 6450–6459.
+[80] Kim Hoang Tran, Phuc Vuong Do, Ngoc Quoc Ly, and Ngan Le. 2024.
+Unifying Global and Local Scene Entities Modelling for Precise Action Spotting.
+In 2024 International Joint Conference on Neural Networks (IJCNN).
+IEEE, 1–8.
+[81] Bastien Vanderplaetse and Stephane Dupont. 2020.
+Improved soccer action spotting using both audio and video streams.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops. 896–897.
+[82] A Vaswani. 2017.
+Attention is all you need.
+Advances in Neural Information Processing Systems (2017).
+[83] Kanav Vats, Mehrnaz Fani, Pascale Walters, David A Clausi, and John Zelek. 2020.
+Event detection in coarsely annotated sports videos via parallel multi-receptive field 1d convolutions.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition workshops.
+IEEE, 882–883.
+[84] Roman Voeikov, Nikolay Falaleev, and Ruslan Baikulov. 2020.
+TTNet: Real-time temporal and spatial video analysis of table tennis.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops. 884–885.
+[85] Fei Wu, Qingzhong Wang, Jiang Bian, Ning Ding, Feixiang Lu, Jun Cheng, Dejing Dou, and Haoyi Xiong. 2022.
+A survey on video action recognition in sports: Datasets, methods and applications.
+IEEE Transactions on Multimedia 25 (2022), 7943–7966.
+[86] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clapés. 2023.
+Astra: An action spotting transformer for soccer videos.
+In Proceedings of the 6th International Workshop on Multimedia Content Analysis in Sports. 93–102.
+[87] Artur Xarles, Sergio Escalera, Thomas B Moeslund, and Albert Clapés. 2024.
+T-DEED: Temporal-Discriminability Enhancer Encoder-Decoder for Precise Event Spotting in Sports Videos.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 3410–3419.
+[88] Hao Xu, Arbind Agrahari Baniya, Sam Wells, Mohamed Reda Bouadjenek, Richard Dazeley, and Sunil Aryal. 2025.
+Multi-Scale Attention and Gated Shifting for Fine-Grained Event Spotting in Videos. arXiv preprint arXiv:2507.07381 (2025).
+[89] Hao Xu, Arbind Agrahari Baniya, Sam Wells, Mohamed Reda Bouadjenek, Richard Dazely, and Sunil Aryal. 2025.
+TOT- Net: Occlusion-Aware Temporal Tracking for Robust Ball Detection in Sports Videos. arXiv preprint arXiv:2508.09650 (2025).
+[90] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu. 2022.
+Finediving: A fine-grained dataset for procedure-aware action quality assessment.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. 2949–2958.
+[91] Ceyuan Yang, Yinghao Xu, Jianping Shi, Bo Dai, and Bolei Zhou. 2020.
+Temporal pyramid network for action recognition.
+In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+IEEE, 591–600.
+[92] Haosen Yang, Wenhao Wu, Lining Wang, Sheng Jin, Boyang Xia, Hongxun Yao, and Hujie Huang. 2022.
+Temporal action proposal generation with background constraint.
+In Proceedings of the AAAI conference on artificial intelligence, Vol. 36. 3054–3062.
+[93] Hongwei Yin, Richard O Sinnott, and Glenn T Jayaputera. 2024.
+A survey of video-based human action recognition in team sports.
+Artificial intelligence review 57, 11 (2024), 293.
+
+[page 28]
+[94] Haotian Zhang, Cristobal Sciutto, Maneesh Agrawala, and Kayvon Fatahalian. 2021.
+Vid2player: Controllable video sprites that behave and appear like professional tennis players.
+ACM Transactions on Graphics (TOG) 40, 3 (2021), 1–16.
+[95] Zhonghan Zhao, Wenhao Chai, Shengyu Hao, Wenhao Hu, Guanhong Wang, Shidong Cao, Mingli Song, Jenq-Neng Hwang, and Gaoang Wang. 2023.
+A survey of deep learning in sports applications: Perception, comprehension, and decision. arXiv preprint arXiv:2307.03353 (2023).
+[96] Xin Zhou, Le Kang, Zhiyu Cheng, Bo He, and Jingyu Xin. 2021.
+Feature combination meets attention: Baidu soccer embeddings and transformer based temporal detection. arXiv preprint arXiv:2106.14447 (2021).
+[97] He Zhu, Junwei Liang, Chengzhi Lin, Jun Zhang, and Jianming Hu. 2022.
+A transformer-based system for action spotting in soccer videos.
+In Proceedings of the 5th international acm workshop on multimedia content analysis in sports. 103–109.
+[98] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. 2020.
+Deformable detr: Deformable transformers for end-to-end object detection. arXiv preprint arXiv:2010.04159 (2020).

@@ -1,0 +1,525 @@
+[page 1]
+Towards Precise Action Spotting: Addressing Temporal Misalignment in Labels with Dynamic Label Assignment Masato Tamura Hitachi America, Ltd. 2535 Augustine Dr, Santa Clara, California, United States of America, 95054 masato.tamura@ieee.org Abstract Precise action spotting has attracted considerable atten- tion due to its promising applications.
+While existing meth- ods achieve substantial performance by employing well- designed model architecture, they overlook a significant challenge: the temporal misalignment inherent in ground- truth labels.
+This misalignment arises when frames labeled as containing events do not align accurately with the ac- tual event times, often as a result of human annotation er- rors or the inherent difficulties in precisely identifying event boundaries across neighboring frames.
+To tackle this issue, we propose a novel dynamic label assignment strategy that allows predictions to have temporal offsets from ground- truth action times during training, ensuring consistent event spotting.
+Our method extends the concept of minimum-cost matching, which is utilized in the spatial domain for object detection, to the temporal domain.
+By calculating match- ing costs based on predicted action class scores and tem- poral offsets, our method dynamically assigns labels to the most likely predictions, even when the predicted times of these predictions deviate from ground-truth times, alleviat- ing the negative effects of temporal misalignment in labels.
+We conduct extensive experiments and demonstrate that our method achieves state-of-the-art performance, particularly in conditions where events are visually distinct and tempo- ral misalignment in labels is common. 1.
+Introduction Action understanding in videos has been extensively re- searched for its potential applications, such as sports anal- ysis, surveillance, and human-computer interaction.
+The scope of action understanding tasks extends from basic action recognition in trimmed videos [3, 13, 29], which involves classifying the types of actions depicted in pre- segmented clips, to more sophisticated tasks such as spa- tiotemporal action localization in untrimmed videos [10, 16, 24, 32], where models localize and classify actions by GT frame Near court serve GT label Near court serve Prediction Class score Time Class score Time Prediction (a) Ground-truth label without temporal misalignment.
+GT frame Near court serve Dynamic label assignment GT label Prediction Class score Time Class score Time Prediction (b) Ground-truth label with temporal misalignment.
+Figure 1.
+Two examples of our proposed dynamic label assign- ment.
+In both cases, the action label “Near court serve” is tagged to the frames at time t.
+In example (a), the event appears to occur around t, leading our method to assign the label to the prediction with a predicted time close to t during training.
+Conversely, in ex- ample (b), the event appears to take place around t−1.
+In this case, our method assigns the label to the prediction with a predicted time close to t −1 based on the predicted action class scores. identifying actors and their actions over time with bound- ing boxes.
+Despite recent advances, the need for robust and efficient solutions for real-world applications keeps action understanding an active and evolving research topic.
+To further expand the capability of action understand- ing in real-world scenarios, precise action spotting has been proposed [12].
+In the precise action spotting task, models aim to precisely identify frames where specific events oc- cur.
+For example, in video clips of tennis matches, mod- els are required to identify frames where players serve at the near court locations, as shown in Fig 1.
+Since adja- cent frames typically look similar, it is challenging to iden- tify event frames precisely.
+To tackle this issue, existing methods [12, 33] have designed model architectures that ef- fectively consider subtle frame differences during the early stages of feature extraction and demonstrate substantial per- arXiv:2504.00149v1  [cs.CV]  31 Mar 2025
+
+[page 2]
+formance in benchmark datasets.
+While we leverage existing model designs, we approach the challenge of precise action spotting from a distinct per- spective: addressing the issue of temporal misalignment in ground-truth labels.
+Figure 1b illustrates an example of the misalignment.
+In the example, the frame at time t is tagged with the action label, yet the event appears to occur around t −1 based on the appearance of the frame at t −1.
+This temporal misalignment can result not only from human annotation errors but also from the inherent difficulties of accurately identifying event boundaries across neighboring frames.
+Furthermore, precisely annotating event frames can be cumbersome, as annotators need to repeatedly navigate back and forth between frames.
+By allowing for a certain degree of misalignment between event and tagged frames, the annotation process can be more efficient, thereby mak- ing precise action spotting more practical.
+To address the issue, we propose a dynamic label as- signment strategy that effectively assigns ground-truth la- bels to the most plausible predictions during training.
+This method draws inspiration from the recent advancements in object detection, particularly the end-to-end methodology introduced by Carion et al.
+[2].
+Their framework calcu- lates matching costs between predicted and ground-truth bounding boxes and subsequently identifies optimal match- ing pairs that yield the lowest total cost.
+Our method ex- tends the minimum cost matching from the spatial domain into the temporal domain.
+Specifically, our method com- putes matching costs using predicted action class scores and temporal offsets from the times of tagged frames and iden- tifies matching pairs that minimize the total cost.
+Notably, while our dynamic label assignment method serves to al- leviate the need for cumbersome post-processing, as seen in object detection models [2], our primary objective is to solve the issue of temporal misalignment in labels.
+By em- ploying predicted action class scores in the matching pro- cess, our method enables labels to be assigned to predictions whose predicted times have some offsets from the times of tagged frames.
+Figure 1 shows two examples of our dy- namic label assignment.
+In both examples, the action label “Near court serve” is tagged to the frames at time t.
+When the event timing is accurately aligned with the label, our method assigns the label to the prediction whose predicted time is close to t, as shown in Fig. 1a.
+Conversely, when the event appears to occur around t −1, our method assigns the label to the prediction close to t −1 based on the predicted action class scores that demonstrate stronger alignment with the action label than the scores of the prediction close to t, as depicted in Fig. 1b.
+This dynamic label assignment mit- igates the challenges of inconsistent action spotting posed by temporal misalignment in labels, thereby enabling mod- els to learn precise action spotting effectively.
+In summary, our contributions are three-fold: (1) We ap- proach the issue of precise action spotting from a novel per- spective that distinguishes our work from existing research.
+To our knowledge, this is the first study that addresses tem- poral misalignment in ground-truth labels for precise action spotting.
+(2) Our method achieves state-of-the-art perfor- mance on multiple benchmark datasets.
+In particular, our method is effective in scenarios where events are visually distinct and temporal misalignment in labels is common.
+(3) We conduct extensive experiments to verify that our method successfully mitigates the effects of temporal misalignment in labels through our dynamic label assignment. 2.
+Related work 2.1.
+Action understanding in videos The tasks associated with action understanding have grown increasingly intricate, where models are required to iden- tify the temporal beginnings and endings of actions within untrimmed videos [4, 17, 34, 38], identify actors involved in those actions in addition to the temporal timings [10, 16, 24, 32], or temporally segment untrimmed videos based on pre-defined action categories [9, 15, 21, 36].
+Since all these tasks require models to determine the temporal intervals of actions, feature extraction across frames is essential.
+The at- tention mechanism in transformers [30] plays a pivotal role for this feature extraction.
+Zhang et al.
+[38] proposed multi- scale transformers to identify actions of varying temporal lengths.
+Yi et al.
+[36] introduced heuristic biases into trans- formers to enhance training efficiency.
+In our work, we also leverage transformers for our dynamic label assignment.
+To broaden the scope of action understanding, Hong et al.
+[12] introduced the concept of precise action spotting.
+They developed a spatiotemporal feature extraction model designed to capture subtle visual differences and created task datasets to advance research in this area.
+Building on this foundation, Xarles et al.
+[33] enhanced model designs to further improve performance.
+Instead of focusing solely on enhancing feature extraction capabilities, we propose a precise action-spotting method aimed at reducing the im- pact of temporal misalignment in labels. 2.2.
+Dynamic label assignment in object detection Dynamic label assignment was initially introduced in a transformer-based object detector known as DETR [2].
+DETR dynamically assigns each ground-truth box to the most plausible predicted box based on predicted class scores and geometric values of bounding boxes, enabling the model to learn to output a single box for each object and thus supporting end-to-end object detection.
+Since then, this strategy has been incorporated into convolutional neu- ral network (CNN)-based object detectors [6–8, 22] as well.
+While these approaches do not focus on end-to-end ob- ject detection, they aim to improve convergence speed and
+
+[page 3]
+model performance through one-to-many assignments.
+In our work, we leverage the dynamic label assignment strategy in DETR not to train end-to-end models but to ad- dress the challenges of inconsistent action spotting posed by temporal misalignment in labels.
+By calculating match- ing costs with predicted action class scores, this strategy as- signs ground-truth labels to the most plausible predictions, thereby facilitating consistent precise action spotting. 3.
+Proposed method Inspired by DETR [2], we leverage transformers [30] to dy- namically assign ground truth labels to predictions during training.
+While DETR performs attention operations in the spatial dimension, we apply it in the temporal dimension.
+This approach encourages our model to selectively aggre- gate features across frames.
+In the next section, we provide a detailed explanation of our method for extracting features and generating predictions from frame sequences. 3.1.
+Model architecture Figure 2 illustrates the architecture of our model.
+First, we convert an input frame sequence to a feature sequence.
+Given a frame sequence x ∈R3×T ×H×W , a feature se- quence hCNN ∈RT ×D is obtained with a backbone CNN fCNN(·) as hCNN = fCNN(x), where T is the length of the sequence, H and W are the height and width of the frames, and D is the feature dimension.
+We employ small models of RegNet [25] as our backbone CNN and incorporate gate-shift modules (GSM) [27] into the net- work.
+This design allows the network to extract features from lengthy sequences of frames with lightweight compu- tation, enabling the network to capture differences between frames and effectively identify event frames.
+A transformer encoder further enhances the extracted feature sequence.
+Given the extracted feature sequence hCNN, the enhanced feature sequence henc ∈RT ×D is generated through Nenc layers of a transformer encoder fenc(·, ·) as henc = fenc(hCNN, p), where p ∈RT ×D represents a positional encoding.
+In line with the implemen- tation of DETR [2], we add the positional encoding to the queries and keys of the self-attention modules rather than adding it to the feature sequence before inputting it into the encoder.
+This encoding process enables the features in the sequence to interact effectively through the self-attention modules, which aids in identifying event frames precisely.
+The essential features are aggregated from the enhanced feature sequence henc using a set of Nq query embeddings Q = {qi | qi ∈RD}Nq i=1 and Ndec layers of a transformer decoder fdec(·, ·, ·, ·).
+We adopt the decoding process from Conditional DETR [23] rather than that from DETR [2] to accelerate the convergence of training.
+In the decoding pro- cess, the query embeddings are transformed into reference frame times R = {ri | ri ∈R}Nq i=1 using a feed-forward neural network (FNN) fref(·) as ri = fref(qi).
+The ref- erence frame times are utilized in the decoder to identify features in the feature sequence and are also employed in the final prediction process to present the base frame times.
+Given the positional encoding p, the feature sequence henc, the query embeddings Q, and the reference times R, fea- ture embeddings Hdec = {h(dec) i | h(dec) i ∈RD}Nq i=1 are obtained as Hdec = fdec(p, henc, Q, R).
+The decoder enables our model to selectively aggregate event features from the feature sequence through cross-attention modules, resulting in precise event frame identification.
+While our primary goal is not to eliminate non-maximum suppression (NMS) in post-processing, the self-attention modules in the decoder facilitate the activation of one feature embedding for each event frame, similarly to how a single embedding is activated for each object in DETR [2].
+We validate the effectiveness of this learnable suppression in the temporal dimension in the supplementary material.
+The feature embeddings are transformed into predictions through two FNNs: a class FNN and a time FNN.
+The class FNN is employed to obtain action class scores for events, while the time FNN is used to obtain the timing of these events.
+Given the feature embedding h(dec) i , predictions are obtained as follows: ˆci = fσ  fclass  h(dec) i  , (1) ˆti = fσ  ftime  h(dec) i  + ri  , (2) where fclass(·) and ftime(·) are the class and time FNNs, respectively, fσ(·) is the sigmoid function, ˆci ∈[0, 1]Nc is a predicted class score vector with Nc being the number of classes, and ˆti ∈[0, 1] is a predicted event frame time expressed as a normalized value in a sequence.
+Note that we use the sigmoid function instead of the softmax function to obtain the class scores because one benchmark dataset is structured in a multi-label format.
+In the subsequent sec- tion, we outline our proposed dynamic label assignment that dynamically assigns ground-truth labels to the predictions during training. 3.2.
+Dynamic label assignment Instead of statically assigning ground-truth labels to pre- dictions based on ground-truth and predicted times during training, we employ a dynamic approach that assigns the la- bels according to the predicted class scores and times.
+This dynamic assignment is essential for reducing the impact of temporal misalignment in labels because it can assign the labels to predictions that exhibit temporal offsets from the ground-truth times when the predicted scores align with the ground-truth action class labels.
+For this dynamic la- bel assignment, we first calculate matching costs between ground-truth labels and predictions.
+Given a set of Ng
+
+[page 4]
+Backbone CNN Transformer encoder Transformer decoder Class FNN Time FNN ... ... ...
+Positional encoding Reference times ...
+Query embeddings ...
+(0.1, 0.3, ..., 0.7) ...
+(0.5, 0.2, ..., 0.2) Reference FNN Figure 2.
+Model architecture of the proposed method. ground-truth labels G = {(ci, ti) | ci ∈[0, 1]Nc, ti ∈ [0, 1]}Ng i=1, where ci is a ground-truth action class label and ti is a ground-truth event frame time expressed as a nor- malized value in a sequence, the set is first padded with ϕ, which indicates no event, to expand the set size to Nq for one-to-one matching between ground truth labels and pre- dictions.
+Once we have the padded ground-truth set, we proceed to calculate the matching cost Hi,j between the i- th ground truth label and the j-th prediction as follows: H(class) i,j = −1 Nc [c⊺ i ˆcj + (1 −ci)⊺(1 −ˆcj)] , (3) H(time) i,j = |ti −ˆtj|, (4) Hi,j = 1{i̸∈Φ} h H(class) i,j + λtimeH(time) i,j i , (5) where Φ is a set of indices corresponding to ϕ, and λtime is a hyper-parameter that adjusts the influence of time costs during the matching process.
+The Hungarian algorithm [14] is applied to the calculated costs to identify the optimal as- signment as ˆω = arg minω∈ΩNq PNq i=1 Hi,ω(i), where ΩNq is the set of all possible permutations of Nq elements, and ω(i) is the i-th element of ω.
+As indicated by Eq. 3, the matching costs decrease when the predicted class scores align with ground-truth action class labels.
+This match- ing strategy allows predictions to exhibit temporal offsets from ground-truth frame times, particularly when neighbor- ing frames are more likely to represent events, mitigating the impact of temporal misalignment in labels. 3.3.
+Loss calculation The training loss is computed using the matched ground- truth labels and predictions.
+We employ focal loss [18] for classification loss and L1 loss for frame time loss.
+The total loss L is calculated as follows: Lclass = 1 Ng Nq X i=1 h 1{i̸∈Φ}  ci −ˆcˆω(i) 2 fCE  ci, ˆcˆω(i)  + 1{i∈Φ}  0 −ˆcˆω(i) 2 fCE  0, ˆcˆω(i) i , (6) Ltime = 1 Ng Nq X i=1 1{i̸∈Φ}|ti −ˆtˆω(i)|, (7) L = Lclass + λtimeLtime, (8) where fCE(·, ·) is the binary cross-entropy loss function.
+Following Hong et al.’s work [12], we employ MixUp [39] and thus use soft labels for ground-truth class labels.
+To this end, we use the soft-target focal loss [31] as shown in Eq. 6.
+We implement this focal loss approach for multi-label clas- sification training on existing methods and re-evaluate their performances for fair comparisons in our experiments. 3.4.
+Inference During the inference process, we need to convert the pre- dictions into action class scores for each frame.
+To achieve this, we first transform the normalized frame times into unnormalized ones as ˆτi = fround(ˆtiT), where fround(·) rounds the input value to the nearest integer, with a mini- mum value set to 1.
+Since multiple ˆτ{1,...,Nq} can point to a single frame, we summarize these results by applying the element-wise maximum function to the predicted score vec- tors ˆci and obtain the scores of the i-th frame ¯ci as follows: ¯ci = ( max(ˆCi) if |ˆCi| > 0, otherwise, (9) where ˆCi = {ˆcj | ˆτj = i} is the set of the predicted class score vectors whose paired frame times ˆτj are equal to i, and max(·) outputs a score vector generated by taking the element-wise maximum values of the vectors in the set.
+Finally, the frame-wise action class scores are obtained as ¯C = {(i, ¯ci)}T i=1. 4.
+Experiments To demonstrate the effectiveness of our method, we con- duct experiments using two different sets of labels.
+The first set consists of the precise labels provided by Hong et al.
+[12].
+The experimental results with these labels show how our method mitigates the effect of the unavoidable tem- poral misalignment caused by human errors or unclear event boundaries.
+The second set contains noisy labels generated by adding Gaussian noise to the event times in the precise labels.
+In the experiments with these labels, we assume that the event times are approximately annotated and analyze how our method performs with these noisy labels.
+We use Spot [12] and T-DEED [33] as baseline meth- ods.
+Spot and T-DEED are state-of-the-art precise action- spotting methods that demonstrate substantial performance
+
+[page 5]
+on the benchmark datasets.
+We verify the effectiveness of our method by comparing the results. 4.1.
+Datasets We conduct experiments with four publicly available bench- mark datasets: Tennis [40], FineDiving [35], Figure Skating (FS) [11]1, and FineGym (FG) [26].
+The videos in these datasets are divided into clips.
+The labels include event times indicated by the frame indices within each clip, along with the action classes performed in those frames.
+The data are split into training, validation, and test sets.
+Unless oth- erwise stated, we report performance on the test sets using model parameters that yield the best results on the valida- tion sets.
+We observe that multiple action labels are tagged to certain frames in the FG dataset and thus treat the dataset as a multi-label dataset.
+Following Hong et al.’s work [12], evaluations are con- ducted using two different configurations for the FS and FG datasets.
+For the FS dataset, the configurations are FS- Comp and FS-Perf.
+For the FG dataset, the configurations are FG-Full and FG-Start.
+Please refer to the supplementary material for more details.
+We create four types of noisy labels by adding Gaussian noise with four different standard deviations: σ = 0.5, 1.0, 1.5, and 2.0.
+We then separately evaluate the performance using the labels associated with each deviation.
+As the stan- dard deviation increases, the event times deviate more from their originally tagged frame times, which complicates the learning of consistent event frame identification.
+Note that Gaussian noise is only added to the labels in the training sets.
+We assume that there are no precise labels for valida- tion and thus report the performance on the test sets using the model parameters from the final epoch in our experi- ments with the noisy labels. 4.2.
+Evaluation metrics We use mean average precision (mAP) as our evaluation metric.
+During the calculation of AP, we introduce a toler- ance level, denoted as δ.
+This tolerance allows a prediction to be counted as a true positive even if it is δ frames away from the corresponding ground-truth frames. 4.3.
+Implementaiton details To ensure fair comparisons, we follow existing works [12, 33] by using the same backbone CNN, input pre-processing, and output post-processing methods.
+Specifically, we uti- lize RegNetY 200MF and 800MF [25] with GSM [27] as our backbone CNN initialized with the ImageNet [5] pre- trained model.
+The frame sequence length T is set to 100.
+We resize the frames to either 224 or 256 pixels in height 1Due to copyright restrictions, we were unable to download one video in the FS dataset.
+All the methods in our experiments are evaluated without the video. before cropping them to a size of 224 × 224.
+During train- ing, we employ standard data augmentation techniques, fol- lowed by MixUp [39].
+Soft NMS [1] is applied to the out- puts of our model.
+Note that soft NMS is applied to the outputs of all the methods in our experiments.
+The hyper-parameter λtime is set to 10 unless otherwise specified.
+For additional details regarding the implementa- tion, please refer to the supplementary material. 4.4.
+Evaluation with precise labels 4.4.1.
+Comparison against state-of-the-art methods Table 1 illustrates the comparison results.
+As shown in the table, our method demonstrates competitive or even superior performance on the Tennis, FineDiving, and FG datasets.
+Remarkably, our method does not utilize the en- hanced gate-shift modules [28] used in T-DEED, nor does it incorporate the flow modality used in Spot.
+Despite this, our method achieves significant performance gains.
+These competitive results can be attributed to our strategy of ef- fectively addressing the temporal misalignment in the labels through our dynamic label assignment.
+Figure 3 illustrates example cases from the Tennis dataset, which show that predicted times in predictions that match ground-truth labels may have temporal offsets during training.
+The central image in each case shows the cropped action region of the tagged frame, while the left and right images capture the regions of the frames immediately be- fore and after the tagged frames.
+The values displayed in the blue boxes and arrows indicate the offsets in the predic- tions relative to the tagged frames.
+In the upper images of each action, where the actions appear to occur within the tagged frames, the ground-truth labels are assigned to the predictions that do not exhibit offsets.
+In contrast, when the actions seem to take place in the adjacent frames or between the frames, the ground-truth labels are assigned to the pre- dictions having reasonable offsets, as demonstrated in the lower images of each action.
+These results indicate that predictions can deviate reasonably from ground-truth times when necessary due to our dynamic label assignment, re- sulting in improved training consistency compared to static label assignment to frames.
+Our method demonstrates lower performance compared to Spot on the FS dataset.
+This reduced performance is likely due to the limited size of the dataset, which contains fewer than ten videos and only several hundred samples for each action class.
+This quantity is significantly smaller than those of the other datasets.
+Since we use transformers, our model requires a substantial number of samples for training and thus may show limited performance with small datasets.
+This assumption is further supported by our results with the 200MF and 800MF backbones, which indicate no perfor- mance improvement with the larger backbone.
+
+[page 6]
+Table 1.
+Comparison against state-of-the-art methods.
+The models are trained with precise labels.
+Tennis FineDiving FS-Comp FS-Perf FG-Full FG-Start Backbone Method δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 RegNetY 200MF Spot [12] T-DEED [33] Ours RegNetY 800MF Spot [12] Spot (+Flow) [12] T-DEED [33] Ours GT frame Offset in prediction (a) Far court serve (b) Near court bounce (c) Near court swing Figure 3.
+Example cases from the Tennis dataset, where the predicted times exhibit offsets from the ground-truth times during training.
+The center images display cropped action regions from the tagged frames, while the left and right images show the regions from the frames immediately before and after the tagged frames.
+The values indicated in the blue boxes and arrows represent the offsets in the predictions. 4.4.2.
+Component analysis To assess the effectiveness of the components in our method, we evaluate our model using three distinct con- figurations and compare the results.
+The comparison re- sults are presented in Table 2.
+In configuration (c1), pre- dictions are generated from frame features obtained from the encoder, with ground-truth labels statically assigned to predictions derived from tagged frames.
+(c2) generates pre- dictions based on feature embeddings from the decoder, allowing predicted times to deviate from the ground-truth times.
+However, action class scores are not used in the matching process, encouraging the assignment of ground- truth labels to predictions that accurately identify ground- truth times.
+(c3) is our proposed dynamic label assignment method.
+The results indicate that allowing offsets in pre- dictions, as seen in (c2), enhances performance, and incor- porating class scores during the matching process in (c3) further improves performance for the Tennis and FineDiv- ing datasets.
+These results indicate the effectiveness of the proposed dynamic label assignment across these datasets.
+The proposed dynamic label assignment strategy, im- plemented in (c3), does not improve performance on the FS and FG datasets.
+This lack of enhancement can be at- tributed to the ambiguity inherent in the definitions of event frames within these datasets.
+It seems that frames adjacent to tagged frames may also be considered event frames due to this ambiguity.
+We discuss this issue further in Sec 4.5.2. 4.5.
+Evaluation with noisy labels In our experiments with noisy labels, RegNetY 200MF serves as the backbone for all the models.
+For the Tennis and FineDiving datasets, we set λtime to 8, 4, 2, and 1 for the labels associated with σ of 0.5, 1.0, 1.5, and 2.0, re- spectively.
+Conversely, for the FS and FG datasets, λtime is set to 8 for the labels with all the σ values.
+This varia- tion is attributed to the event frame ambiguity mentioned in Sec. 4.4.2, which we analyze in this section.
+We report the mean and standard deviation of mAP values obtained from 10 trials using 10 different random seeds because we noted significant fluctuations in mAP values between the trials. 4.5.1.
+Comparison against state-of-the-art methods Figure 4 shows the mAP values in relation to the standard deviations of the added Gaussian noise.
+The solid and dot- ted lines indicate results for δ = 1 and 2, respectively.
+For reference, we also include results from Table 1 at σ = 0.0.
+The figure demonstrates that our method surpasses exist- ing methods when considerable noise is introduced into the training labels.
+In particular, our method achieves 19.79 and 9.00 higher mAP for δ = 1 and 2, respectively, when σ = 2.0, compared to the existing methods on the Tennis dataset.
+The event frames in the Tennis dataset are visually distinct compared to those in the other datasets.
+This clar- ity is vital for our method, as our dynamic label assignment relies on predicted class scores to correctly assign ground- truth labels to predictions.
+When event frames are clear,
+
+[page 7]
+Table 2.
+Comparison with various configurations of our method.
+The models of all the configurations are trained with precise labels.
+Design Matching Tennis FineDiving FS-Comp FS-Perf FG-Full FG-Start Enc.
+Dec.
+Time Class δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 (c1) ✓ ✓ (c2) ✓ ✓ ✓ (c3) ✓ ✓ ✓ ✓ σ mAP δ = 1 δ = 2 Spot T-DEED Ours (a) Tennis σ mAP Spot T-DEED Ours (b) FineDiving σ mAP Spot T-DEED Ours (c) FS-Comp σ mAP Spot T-DEED Ours (d) FS-Perf σ mAP Spot T-DEED Ours (e) FG-Full σ mAP Spot T-DEED Ours (f) FG-Start Figure 4.
+Comparison against state-of-the-art methods.
+The solid and dotted lines indicate the results for δ = 1 and δ = 2, respectively.
+For reference, we include the results from Table 1 at σ of 0.0. predicted class scores become more distinctive, enabling our method to accurately assign ground-truth labels to pre- dictions even if they deviate significantly from the times of the ground-truth labels.
+This is the reason why we employ lower λtime values for higher σ values to rely more on pre- dicted scores during the matching process for the Tennis and FineDiving datasets, where event frames are more apparent.
+In contrast, we maintain λtime = 8 across all σ values for the FS and FG datasets, where event frames are less distinct.
+Since precise labels are provided, we can verify whether our method effectively cancels the Gaussian noise injected into the noisy labels.
+Figure 5 shows the temporal offsets in predictions relative to the ground-truth times in the precise labels during training with the Tennis dataset.
+Since the model is trained using noisy labels that incorporate Gaus- sian noise with a standard deviation of σ = 2.0, we can expect an average offset time of 1.58 in the predicted times relative to the ground-truth times in the precise labels.
+How- ever, as training progresses, the predicted times exhibit an offset time of less than 1.58.
+This outcome suggests that our dynamic label assignment does not strictly adhere to the times in the noisy labels.
+Instead, it relies on action Training steps Oﬀsets from precise GT times Predicted Avg. with noisy labels (σ = 2.0) Figure 5.
+Offsets between ground-truth times in the original pre- cise labels and predicted times.
+Since our model is trained using the noisy labels associated with σ of 2.0, we can expect an aver- age offset of 1.58 between the predicted times and the ground truth times in the precise labels.
+However, the predicted times eventu- ally exhibit offsets of less than 1.58 during training. class scores to identify event frames, enabling our model to learn to identify event frames consistently, even when event times are approximately annotated.
+
+[page 8]
+δ mAP λtime = 8 λtime = 1 (a) FS-Comp δ mAP λtime = 8 λtime = 0.1 (b) FG-Full Figure 6.
+Comparison with different λtime values.
+The noisy labels associated with σ = 2.0 are used for training.
+Predicted score Time GT frame time Score gap Figure 7.
+Calculated score gaps.
+GT frame Predicted frame Figure 8.
+Example case where our model recognizes the action class “Spin take off” correctly but identifies a frame apart from the tagged frame as an event frame in the test set of the FS dataset. 4.5.2.
+Time weight analysis In this section, we adjust λtime to 1 and 0.1 for the FS and FG datasets, respectively, in training with the noisy labels generated by Gaussian noise of σ = 2.0 and evaluate the performance under these parameters.
+Figure 6 presents a comparison of our model’s perfor- mance with the high and low values of λtime.
+As shown in the figure, our model performs better with the higher λtime values when the tolerance level δ is low.
+However, as the tolerance increases, the model trained with the lower λtime values demonstrates superior performance.
+This suggests that while our model is more effective at recognizing events with low λtime values, it also tends to identify frames that are apart from tagged frames as event frames.
+Figure 8 shows an example where our model accurately recognizes the action “Spin take off” but incorrectly identi- fies a frame apart from the tagged frame as an event frame in the test set of the FS dataset.
+The figure illustrates that the label is assigned to a frame where it is ambiguous whether the player’s leg is off the ground, while our model identi- fies the frame where the player clearly takes off.
+We fre- quently encounter these incorrectly identified frames.
+Since our dynamic label assignment is based on predicted class scores, our method tends to assign ground-truth labels to predictions that point to frames where actions are distinctly observable.
+Consequently, our model identifies frames sub- sequent to tagged frames as event frames in the FS dataset.
+More examples are provided in the supplementary material.
+We further analyze the reason behind the improved per- formance with low λtime values by examining the pre- dicted class scores around ground-truth times in the test sets.
+We calculate the score gaps between the highest and second-highest predicted scores corresponding to ground- Table 3.
+Average score gaps between the highest and the second highest scores.
+FS-Comp FS-Perf FG-Full FG-Start λtime (δ = 4) (δ = 4) (δ = 8) (δ = 8) 1 (FS) / 0.1 (FG) truth classes within a tolerance δ from the ground-truth times, as illustrated in Fig. 7.
+We focus on samples that have no other ground-truth labels around target labels.
+Since only one event frame is present within the tolerance, our model is expected to produce one high score within the tolerance, leading to large score gaps.
+Table 3 shows the average score gaps for different λtime values.
+As seen in the table, the score gaps increase as λtime values decrease.
+These re- sults indicate that our model identifies a single event frame with greater confidence when trained with low λtime val- ues.
+When λtime is set high, our dynamic label assign- ment needs to adhere strictly to ground-truth times dur- ing training, even when the action appearances in tagged frames are visually inconsistent between samples.
+Con- versely, with low λtime, our assignment can rely more on the predicted scores, allowing our assignment strategy to se- lect event frames that are visually consistent.
+Consequently, the model trained with lower λtime values can select event frames confidently and thus achieve better performance. 5.
+Conclusion We propose a dynamic label assignment strategy aimed at improving precise action-spotting performance by tackling the issue of temporal misalignment in ground-truth labels.
+This method assigns labels to predictions based not only on the predicted times but also on the predicted class scores.
+
+[page 9]
+As a result, the predicted times can deviate from the times in the labels, effectively addressing the misalignment.
+Experi- ments show that our method outperforms existing methods, particularly when events are visually clear, and the labels are significantly misaligned with the actual event times.
+References [1] Navaneeth Bodla, Bharat Singh, Rama Chellappa, and Larry S.
+Davis.
+Soft-NMS — Improving object detection with one line of code.
+In ICCV, 2017. 5, 1 [2] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko.
+End-to- end object detection with transformers.
+In ECCV, 2020. 2, 3, 1 [3] Jo˜ao Carreira and Andrew Zisserman.
+Quo vadis, action recognition?
+A new model and the kinetics dataset.
+In CVPR, [4] Yu-Wei Chao, Sudheendra Vijayanarasimhan, Bryan Sey- bold, David A.
+Ross, Jia Deng, and Rahul Sukthankar.
+Re- thinking the Faster R-CNN architecture for temporal action localization.
+In CVPR, 2018. 2 [5] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei.
+ImageNet: A large-scale hierarchical image database.
+In CVPR, 2009. 5 [6] Chengjian Feng, Yujie Zhong, Yu Gao, Matthew R Scott, and Weilin Huang.
+TOOD: Task-aligned one-stage object detection.
+In ICCV, 2021. 2 [7] Zheng Ge, Songtao Liu, Zeming Li, Osamu Yoshie, and Jian Sun.
+OTA: Optimal transport assignment for object detec- tion.
+In CVPR, 2021.
+[8] Zheng Ge, Songtao Liu, Feng Wang, Zeming Li, and Jian Sun.
+YOLOX: Exceeding YOLO series in 2021. arXiv preprint arXiv:2107.08430, 2021. 2 [9] Dayoung Gong, Joonseok Lee, Deunsol Jung, Suha Kwak, and Minsu Cho.
+Activity grammars for temporal action seg- mentation.
+In NeurIPS, 2023. 2 [10] Alexey A.
+Gritsenko, Xuehan Xiong, Josip Djolonga, Mostafa Dehghani, Chen Sun, Mario Lucic, Cordelia Schmid, and Anurag Arnab.
+End-to-end spatio-temporal ac- tion localisation with video transformers.
+In CVPR, 2024. 1, [11] James Hong, Matthew Fisher, Micha¨el Gharbi, and Kayvon Fatahalian.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In ICCV, 2021. 5, 1 [12] James Hong, Haotian Zhang, Micha¨el Gharbi, Matthew Fisher, and Kayvon Fatahalian.
+Spotting temporally precise, fine-grained events in video.
+In ECCV, 2022. 1, 2, 4, 5, 6 [13] Andrej Karpathy, George Toderici, Sanketh Shetty, Thomas Leung, Rahul Sukthankar, and Li Fei-Fei.
+Large-scale video classification with convolutional neural networks.
+In CVPR, [14] H.
+W.
+Kuhn and Bryn Yaw.
+The Hungarian method for the assignment problem.
+Naval Res.
+Logist.
+Quart, pages 83–97, [15] Peng Lei and Sinisa Todorovic.
+Temporal deformable resid- ual networks for action segmentation in videos.
+In CVPR, [16] Yuxi Li, Weiyao Lin, John See, Ning Xu, Shugong Xu, Ke Yan, and Cong Yang.
+CFAD: Coarse-to-fine action detector for spatiotemporal action localization.
+In ECCV, 2020. 1, 2 [17] Chuming Lin, Chengming Xu, Donghao Luo, Yabiao Wang, Ying Tai, Chengjie Wang, Jilin Li, Feiyue Huang, and Yan- wei Fu.
+Learning salient boundary feature for anchor-free temporal action localization.
+In CVPR, 2021. 2 [18] Tsung-Yi Lin, Priya Goyal, Ross B.
+Girshick, Kaiming He, and Piotr Doll´ar.
+Focal loss for dense object detection.
+In ICCV, 2017. 4 [19] Ilya Loshchilov and Frank Hutter.
+SGDR: Stochastic gradi- ent descent with warm restarts.
+In ICLR, 2017. 1 [20] Ilya Loshchilov and Frank Hutter.
+Decoupled weight decay regularization.
+In ICLR, 2019. 1 [21] Zijia Lu and Ehsan Elhamifar.
+FACT: Frame-action cross- attention temporal modeling for efficient supervised action segmentation.
+In CVPR, 2024. 2 [22] Chengqi Lyu, Wenwei Zhang, Haian Huang, Yue Zhou, Yudong Wang, Yanyi Liu, Shilong Zhang, and Kai Chen.
+RTMDet: An empirical study of designing real-time object detectors. arXiv preprint arXiv:2212.07784, 2022. 2 [23] Depu Meng, Xiaokang Chen, Zejia Fan, Gang Zeng, Houqiang Li, Yuhui Yuan, Lei Sun, and Jingdong Wang.
+Conditional DETR for fast training convergence.
+In ICCV, [24] Junting Pan, Siyu Chen, Mike Zheng Shou, Yu Liu, Jing Shao, and Hongsheng Li.
+Actor-context-actor relation net- work for spatio-temporal action localization.
+In CVPR, 2021. 1, 2 [25] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Doll´ar.
+Designing network design spaces.
+In CVPR, 2020. 3, 5, 1 [26] Dian Shao, Yue Zhao, Bo Dai, and Dahua Lin.
+FineGym: A hierarchical video dataset for fine-grained action understand- ing.
+In CVPR, 2020. 5, 1 [27] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz.
+Gate-shift networks for video action recognition.
+In CVPR, 2020. 3, 5 [28] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz.
+Gate-shift-fuse for video action recognition.
+IEEE TPAMI, 45(9):10913–10928, 2023. 5 [29] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri.
+Learning spatiotemporal features with 3D convolutional networks.
+In ICCV, 2015. 1 [30] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko- reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin.
+Attention is all you need.
+In NeurIPS, 2017. 2, [31] Dong Wang, Yuan Zhang, Kexin Zhang, and Liwei Wang.
+FocalMix: Semi-supervised learning for 3D medical image detection.
+In CVPR, 2020. 4 [32] Philippe Weinzaepfel, Za¨ıd Harchaoui, and Cordelia Schmid.
+Learning to track for spatio-temporal action local- ization.
+In ICCV, 2015. 1, 2
+
+[page 10]
+[33] Artur Xarles, Sergio Escalera, Thomas B.
+Moeslund, and Al- bert Clap´es.
+T-DEED: Temporal-discriminability enhancer encoder-decoder for precise event spotting in sports videos.
+In CVPRW, 2024. 1, 2, 4, 5, 6 [34] Huijuan Xu, Abir Das, and Kate Saenko.
+R-C3D: Region convolutional 3D network for temporal activity detection.
+In ICCV, 2017. 2 [35] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu.
+FineDiving: A fine-grained dataset for procedure-aware action quality assessment.
+In CVPR, 2022.
+[36] Fangqiu Yi, Hongyu Wen, and Tingting Jiang.
+ASFormer: Transformer for action segmentation.
+In BMVC, 2021. 2 [37] Shuangfei Zhai, Tatiana Likhomanenko, Etai Littwin, Dan Busbridge, Jason Ramapuram, Yizhe Zhang, Jiatao Gu, and Joshua M Susskind.
+Stabilizing transformer training by pre- venting attention entropy collapse.
+In ICML, 2023. 1 [38] Chen-Lin Zhang, Jianxin Wu, and Yin Li.
+ActionFormer: Localizing moments of actions with transformers.
+In ECCV, [39] Hongyi Zhang, Moustapha Cisse, Yann N.
+Dauphin, and David Lopez-Paz. mixup: Beyond empirical risk minimiza- tion.
+In ICLR, 2018. 4, 5, 1 [40] Haotian Zhang, Cristobal Sciutto, Maneesh Agrawala, and Kayvon Fatahalian.
+Vid2player: Controllable video sprites that behave and appear like professional tennis players.
+ACM TOG, 40(3):1–16, 2021. 5
+
+[page 11]
+Towards Precise Action Spotting: Addressing Temporal Misalignment in Labels with Dynamic Label Assignment Supplementary Material A.
+Dataset details As detailed in Sec. 4.1 of the main paper, evaluations are conducted using two different configurations for the FS [11] and FG [26] datasets.
+For the FS dataset, there are two types of splits: a com- petition split (FS-Comp), which withholds certain videos from the training set for testing, and a performance split (FS-Perf), which divides clips from each video into train- ing, validation, and test sets.
+The FS-Comp split is utilized to evaluate the generalization capabilities of models, as the withheld videos contain different views and backgrounds from those in the training set.
+In contrast, the FS-Perf split assesses spotting performance when certain domain infor- mation, such as views and backgrounds, is available in the training data.
+For the FG dataset, we present results for two scenarios: spotting both the start and end of actions in the full setting (FG-Full) and spotting only the start of the actions in the start setting (FG-Start).
+Hong et al.
+[12] noted that the an- notations for action start frames are generally more visually consistent than those for end frames.
+Consequently, the per- formance for the FG-Start split is reported separately.
+B.
+Further implementation details We set both the number of encoder layers Nenc and decoder layers Ndec to 6, and configure the number of queries Nq to 100.
+In the multi-head attention mechanism of the en- coder and decoder layers, the number of heads is set to 8.
+The ReLU activation function is used in the FNNs of the encoder and decoder layers.
+The feature dimension is ex- panded to 2048 when the features pass through the activa- tion functions.
+For positional encoding, we use a typical 1D sinusoidal positional encoding.
+The feature dimension D is set to 368 for the RegNetY 200MF backbone CNN and 768 for the RegNetY 800MF backbone CNN [25].
+We observed unstable training on the FS and FG datasets with the Reg- NetY 800MF backbone CNN.
+To address this, we employed a reparameterization technique [37] to stabilize the training process.
+The reference, class, and time FNNs are built using the linear layers and the ReLU activation function.
+The ref- erence FNN consists of 2 linear layers with the activation function applied between them.
+The class FNN contains a single linear layer.
+The time FNN is made up of 3 linear layers, each separated by the activation function.
+Through- out this process, the feature dimension remains constant at D even when it passes through the activation functions.
+To train our model, we use the AdamW [20] optimizer with a batch size of 8, whose initial learning rates for the backbone CNN and the transformer are set to 10−3 and 10−4, respectively.
+Weight decay is set to 10−4.
+Our model is trained for 200 epochs on the FG dataset and for 100 epochs on the other datasets.
+The learning rates are adjusted with a linear warmup for the initial 3 epochs followed by the cosine decay [19].
+To enhance performance, we incorporate auxiliary losses based on predictions from all the decoder layers, following the training method of DETR [2].
+As detailed in Sec. 4.3 of the main paper, we follow ex- isting methods [12, 33] by implementing both input pre- processing and output post-processing techniques to ensure fair comparisons.
+We generate batches by randomly sam- pling T-length clips from the training videos.
+Each training epoch is formed by grouping 625 training steps, amounting to 500,000 frames per epoch.
+For data augmentation, we employ random cropping, random horizontal flipping, color jittering, Gaussian blur, and MixUp [39].
+In the FS dataset, we apply the label dilation technique, which extends event labels to one frame before and one frame after each event during training to alleviate label sparsity.
+During testing, we input frame sequences with a 50 % overlap and average the predictions for each frame.
+We extract predictions with scores greater than 0.01 to calculate mAP values.
+The win- dow size for soft NMS is set to 3.
+C.
+Comparison without soft NMS Although eliminating NMS is not our target, the proposed method, by its nature, enables our model to learn to sup- press duplicated prediction results with the self-attention modules in the decoder.
+To confirm the effectiveness, we compare results without soft NMS [1].
+Table i illustrates the comparison results with the 800MF backbone CNN.
+Note that the label dilation used in Spot [12] and our method and the label displacement used in T-DEED [33] are disabled so that the models output one prediction result for each event.
+As shown in the table, our method outperforms the exist- ing methods on almost all the datasets.
+In particular, our method achieves 4.88, 4.98, and 5.38 higher mAP on the FineDiving, FG-Full, and FG-Start datasets with δ = 1.
+These results indicate that the suppression with the self- attention modules in the decoder performs better than that of the other architecture, demonstrating the potential of elimi- nating NMS in the action-spotting task.
+
+[page 12]
+Table i.
+Comparison against state-of-the-art methods without soft NMS.
+The models are trained with precise labels.
+Tennis FineDiving FS-Comp FS-Perf FG-Full FG-Start Method δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 δ = 1 δ = 2 Spot [12] Spot (+Flow) [12] T-DEED [33] Ours D.
+More examples of incorrect spotting As outlined in Sec. 4.5.2 of the main paper, our model tends to recognize actions accurately but identifies frames that are apart from tagged frames as event frames within the FS and FG datasets.
+Figure i provides additional examples of the cases from the test set of the FS dataset.
+In Fig. ia and ic, our model identifies frames where the players’ legs are on the ground more apparently compared to the tagged frames for the action classes “Jump landing” and “Spin landing.” On the other hand, Fig. ib and id illustrate that our model rec- ognizes frames where the players’ legs are off the ground more clearly than the tagged frames for the action classes “Jump take off” and “Spin take off.” As explained in the main paper, our model frequently identifies frames that fol- low the tagged frames as event frames in the FS dataset be- cause the actions in these subsequent frames are typically more observable compared to the tagged frames.
+This trend is further supported by the examples shown in Fig. i.
+References [1] Navaneeth Bodla, Bharat Singh, Rama Chellappa, and Larry S.
+Davis.
+Soft-NMS — Improving object detection with one line of code.
+In ICCV, 2017. 5, 1 [2] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko.
+End-to- end object detection with transformers.
+In ECCV, 2020. 2, 3, 1 [3] Jo˜ao Carreira and Andrew Zisserman.
+Quo vadis, action recognition?
+A new model and the kinetics dataset.
+In CVPR, [4] Yu-Wei Chao, Sudheendra Vijayanarasimhan, Bryan Sey- bold, David A.
+Ross, Jia Deng, and Rahul Sukthankar.
+Re- thinking the Faster R-CNN architecture for temporal action localization.
+In CVPR, 2018. 2 [5] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei.
+ImageNet: A large-scale hierarchical image database.
+In CVPR, 2009. 5 [6] Chengjian Feng, Yujie Zhong, Yu Gao, Matthew R Scott, and Weilin Huang.
+TOOD: Task-aligned one-stage object detection.
+In ICCV, 2021. 2 [7] Zheng Ge, Songtao Liu, Zeming Li, Osamu Yoshie, and Jian Sun.
+OTA: Optimal transport assignment for object detec- tion.
+In CVPR, 2021.
+[8] Zheng Ge, Songtao Liu, Feng Wang, Zeming Li, and Jian Sun.
+YOLOX: Exceeding YOLO series in 2021. arXiv preprint arXiv:2107.08430, 2021. 2 [9] Dayoung Gong, Joonseok Lee, Deunsol Jung, Suha Kwak, and Minsu Cho.
+Activity grammars for temporal action seg- mentation.
+In NeurIPS, 2023. 2 [10] Alexey A.
+Gritsenko, Xuehan Xiong, Josip Djolonga, Mostafa Dehghani, Chen Sun, Mario Lucic, Cordelia Schmid, and Anurag Arnab.
+End-to-end spatio-temporal ac- tion localisation with video transformers.
+In CVPR, 2024. 1, [11] James Hong, Matthew Fisher, Micha¨el Gharbi, and Kayvon Fatahalian.
+Video pose distillation for few-shot, fine-grained sports action recognition.
+In ICCV, 2021. 5, 1 [12] James Hong, Haotian Zhang, Micha¨el Gharbi, Matthew Fisher, and Kayvon Fatahalian.
+Spotting temporally precise, fine-grained events in video.
+In ECCV, 2022. 1, 2, 4, 5, 6 [13] Andrej Karpathy, George Toderici, Sanketh Shetty, Thomas Leung, Rahul Sukthankar, and Li Fei-Fei.
+Large-scale video classification with convolutional neural networks.
+In CVPR, [14] H.
+W.
+Kuhn and Bryn Yaw.
+The Hungarian method for the assignment problem.
+Naval Res.
+Logist.
+Quart, pages 83–97, [15] Peng Lei and Sinisa Todorovic.
+Temporal deformable resid- ual networks for action segmentation in videos.
+In CVPR, [16] Yuxi Li, Weiyao Lin, John See, Ning Xu, Shugong Xu, Ke Yan, and Cong Yang.
+CFAD: Coarse-to-fine action detector for spatiotemporal action localization.
+In ECCV, 2020. 1, 2 [17] Chuming Lin, Chengming Xu, Donghao Luo, Yabiao Wang, Ying Tai, Chengjie Wang, Jilin Li, Feiyue Huang, and Yan- wei Fu.
+Learning salient boundary feature for anchor-free temporal action localization.
+In CVPR, 2021. 2 [18] Tsung-Yi Lin, Priya Goyal, Ross B.
+Girshick, Kaiming He, and Piotr Doll´ar.
+Focal loss for dense object detection.
+In ICCV, 2017. 4 [19] Ilya Loshchilov and Frank Hutter.
+SGDR: Stochastic gradi- ent descent with warm restarts.
+In ICLR, 2017. 1 [20] Ilya Loshchilov and Frank Hutter.
+Decoupled weight decay regularization.
+In ICLR, 2019. 1 [21] Zijia Lu and Ehsan Elhamifar.
+FACT: Frame-action cross- attention temporal modeling for efficient supervised action segmentation.
+In CVPR, 2024. 2 [22] Chengqi Lyu, Wenwei Zhang, Haian Huang, Yue Zhou, Yudong Wang, Yanyi Liu, Shilong Zhang, and Kai Chen.
+
+[page 13]
+GT frame Predicted frame GT frame Predicted frame (a) Jump landing GT frame Predicted frame GT frame Predicted frame (b) Jump take off GT frame Predicted frame GT frame Predicted frame (c) Spin landing GT frame Predicted frame GT frame Predicted frame (d) Spin take off Figure i.
+Additional example cases where our model recognizes the action classes correctly but identifies frames subsequent to tagged frames as event frames in the test set of the FS dataset.
+RTMDet: An empirical study of designing real-time object detectors. arXiv preprint arXiv:2212.07784, 2022. 2 [23] Depu Meng, Xiaokang Chen, Zejia Fan, Gang Zeng, Houqiang Li, Yuhui Yuan, Lei Sun, and Jingdong Wang.
+Conditional DETR for fast training convergence.
+In ICCV, [24] Junting Pan, Siyu Chen, Mike Zheng Shou, Yu Liu, Jing Shao, and Hongsheng Li.
+Actor-context-actor relation net- work for spatio-temporal action localization.
+In CVPR, 2021. 1, 2 [25] Ilija Radosavovic, Raj Prateek Kosaraju, Ross Girshick, Kaiming He, and Piotr Doll´ar.
+Designing network design spaces.
+In CVPR, 2020. 3, 5, 1 [26] Dian Shao, Yue Zhao, Bo Dai, and Dahua Lin.
+FineGym: A
+
+[page 14]
+hierarchical video dataset for fine-grained action understand- ing.
+In CVPR, 2020. 5, 1 [27] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz.
+Gate-shift networks for video action recognition.
+In CVPR, 2020. 3, 5 [28] Swathikiran Sudhakaran, Sergio Escalera, and Oswald Lanz.
+Gate-shift-fuse for video action recognition.
+IEEE TPAMI, 45(9):10913–10928, 2023. 5 [29] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri.
+Learning spatiotemporal features with 3D convolutional networks.
+In ICCV, 2015. 1 [30] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko- reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin.
+Attention is all you need.
+In NeurIPS, 2017. 2, [31] Dong Wang, Yuan Zhang, Kexin Zhang, and Liwei Wang.
+FocalMix: Semi-supervised learning for 3D medical image detection.
+In CVPR, 2020. 4 [32] Philippe Weinzaepfel, Za¨ıd Harchaoui, and Cordelia Schmid.
+Learning to track for spatio-temporal action local- ization.
+In ICCV, 2015. 1, 2 [33] Artur Xarles, Sergio Escalera, Thomas B.
+Moeslund, and Al- bert Clap´es.
+T-DEED: Temporal-discriminability enhancer encoder-decoder for precise event spotting in sports videos.
+In CVPRW, 2024. 1, 2, 4, 5, 6 [34] Huijuan Xu, Abir Das, and Kate Saenko.
+R-C3D: Region convolutional 3D network for temporal activity detection.
+In ICCV, 2017. 2 [35] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu.
+FineDiving: A fine-grained dataset for procedure-aware action quality assessment.
+In CVPR, 2022.
+[36] Fangqiu Yi, Hongyu Wen, and Tingting Jiang.
+ASFormer: Transformer for action segmentation.
+In BMVC, 2021. 2 [37] Shuangfei Zhai, Tatiana Likhomanenko, Etai Littwin, Dan Busbridge, Jason Ramapuram, Yizhe Zhang, Jiatao Gu, and Joshua M Susskind.
+Stabilizing transformer training by pre- venting attention entropy collapse.
+In ICML, 2023. 1 [38] Chen-Lin Zhang, Jianxin Wu, and Yin Li.
+ActionFormer: Localizing moments of actions with transformers.
+In ECCV, [39] Hongyi Zhang, Moustapha Cisse, Yann N.
+Dauphin, and David Lopez-Paz. mixup: Beyond empirical risk minimiza- tion.
+In ICLR, 2018. 4, 5, 1 [40] Haotian Zhang, Cristobal Sciutto, Maneesh Agrawala, and Kayvon Fatahalian.
+Vid2player: Controllable video sprites that behave and appear like professional tennis players.
+ACM TOG, 40(3):1–16, 2021. 5

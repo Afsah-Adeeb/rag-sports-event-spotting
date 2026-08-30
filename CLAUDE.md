@@ -27,6 +27,9 @@ cd src
 ../.venv/Scripts/python.exe cli.py             # interactive Q&A loop
 ../.venv/Scripts/python.exe evaluate.py        # runs eval/test_questions.json -> eval/results.md
 ../.venv/Scripts/python.exe telemetry.py       # terminal summary of the runtime monitoring log
+../.venv/Scripts/python.exe export_text.py     # PDFs -> data/papers_text/*.txt (for agentic arm)
+../.venv/Scripts/python.exe agent_rag.py "question"   # agentic (grep/read loop) answer
+../.venv/Scripts/python.exe compare_rag.py     # semantic vs agentic -> eval/comparison.md
 ../.venv/Scripts/python.exe measure_threshold.py  # re-derive config.LOW_CONFIDENCE_THRESHOLD
 ../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat + library + metrics)
 ```
@@ -86,6 +89,23 @@ eval k-values) live in one place: `src/config.py`. Change knobs there, not inlin
   all in `evaluate.py`. Gemini model availability shifts over time; if `generate.py`/`evaluate.py` starts
   raising `404 NOT_FOUND` on the model name, list currently available models with
   `client.models.list()` (see `src/generate.py` for client setup) rather than guessing a replacement name.
+- **Agentic comparison arm** (`export_text.py`, `agent_tools.py`, `agent_rag.py`, `compare_rag.py`):
+  a second retrieval strategy with no index at all — the model drives `list_papers`/`grep_papers`/
+  `read_paper` in a loop. Exists to *measure* the semantic-vs-agentic tradeoff rather than assert it.
+  The Gemini SDK's automatic function calling is deliberately disabled and the loop written by hand,
+  for the same reason FAISS was chosen over Chroma: the mechanism under study should be visible.
+  Fairness constraints that must not be broken when editing: both arms run the same model
+  (`config.BENCHMARK_MODEL_NAME`, separate from `GEMINI_MODEL_NAME` because free quota is
+  per-model-per-day and a benchmark run would otherwise exhaust the live app's budget), and
+  `export_text.py` reuses `ingest.py`'s extraction/cleaning so neither side gets cleaner text.
+  Two tooling bugs were found by measurement and are worth not reintroducing: (1) tool output needs a
+  **byte** budget, not just a count — after paragraph joining a single "line" ran to thousands of
+  chars and one grep returned 127K chars (~113K tokens); (2) grep spends its budget **round-robin
+  across papers**, because draining it in filename order meant a broad pattern never reached the
+  alphabetically-later paper that actually answered the question, which looked like an agentic-retrieval
+  failure but was a tool bug. `compare_rag.py` reports cost ratios and Hit Rate but deliberately not
+  Precision@k (undefined comparably: semantic returns exactly k, agentic returns what it chose to open),
+  and prints a sample-size warning below 15 questions.
 - **Monitoring** (`telemetry.py`): every answered question, from both front ends, is appended to
   `data/telemetry/events.jsonl` as a JSON line; the app's Metrics tab reads it back. Three decisions
   worth knowing before editing it: (1) the log is **append-only** — feedback arrives after the answer

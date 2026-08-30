@@ -95,6 +95,45 @@ cd "D:\RAG System\src"
 Prints Hit Rate@k / Precision@k to the terminal and writes `eval/results.md` with every generated
 answer next to its retrieved sources, for manual faithfulness review.
 
+## Semantic vs Agentic RAG (the comparison experiment)
+
+The main pipeline is **semantic RAG**: pre-embed every chunk, embed the question, return the nearest
+5. One retrieval step, decided by vector similarity.
+
+`agent_rag.py` implements the alternative, **agentic RAG** — the pattern behind coding agents like
+Claude Code and Cursor. There is no index at all. The model gets three tools (`list_papers`,
+`grep_papers`, `read_paper`) and searches the papers itself, reading results and deciding what to look
+at next, until it can answer.
+
+`compare_rag.py` runs both over the same labelled questions and writes `eval/comparison.md`:
+```
+cd "D:\RAG System\src"
+..\.venv\Scripts\python.exe export_text.py     # one-time: PDFs -> greppable text
+..\.venv\Scripts\python.exe compare_rag.py
+```
+
+**What is held constant**, so the result measures retrieval strategy and nothing else: the same model
+for both arms (`config.BENCHMARK_MODEL_NAME`), the same extracted text (`export_text.py` reuses
+`ingest.py`'s extraction and cleaning), and the same questions and ground truth that `evaluate.py` uses.
+
+Current result on 3 questions — cost ratios are meaningful, the hit rate is **not** (see the sample-size
+warning the report prints; ~15-20 questions are needed before a pass/fail proportion is worth quoting):
+
+| Metric | Semantic | Agentic |
+|---|---|---|
+| Median latency | 6.1s | 12.1s (2.0x) |
+| Mean input tokens | 1,357 | 5,296 (3.9x) |
+| API round trips | 1.0 | 2.3 |
+
+The cost gap is structural, not incidental: every turn of the agentic loop resends the entire
+conversation *including every tool result*, so tokens compound with each search.
+
+**Why agentic retrieval struggles on papers specifically.** Grep matches characters, embeddings match
+meaning. Asked about "temporal discriminability", a lexical search misses the T-DEED paper entirely —
+that paper writes `Temporal-Discriminability`, hyphenated, and never as two plain words. A hyphen
+defeats the match; an embedding does not notice it. The agentic loop can recover by retrying with a
+shorter pattern, which is its real advantage, but it has to spend turns doing so.
+
 ## Monitoring
 
 Evaluation tells you if the system is good *on questions you chose, offline*. Monitoring tells you

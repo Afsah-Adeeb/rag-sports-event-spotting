@@ -95,13 +95,17 @@ def _extract_usage(response):
     }
 
 
-def generate_with_usage(question, retrieved_chunks):
+def generate_with_usage(question, retrieved_chunks, model=None):
     """Answer from chunks, returning the text plus cost/latency metadata.
 
     This is the core call. It returns a dict rather than a bare string so the
     monitoring layer (telemetry.py) can record how long generation took and
     how many tokens it burned -- measured here, at the actual API boundary,
     rather than estimated by the caller.
+
+    `model` overrides config.GEMINI_MODEL_NAME. compare_rag.py uses it to pin
+    both arms of the benchmark to one model, so the comparison measures
+    retrieval strategy rather than the difference between two models.
 
     Returns: {"answer": str, "generation_ms": float,
               "input_tokens": int|None, "output_tokens": int|None}
@@ -111,7 +115,7 @@ def generate_with_usage(question, retrieved_chunks):
 
     started = time.perf_counter()
     response = client.models.generate_content(
-        model=config.GEMINI_MODEL_NAME,
+        model=model or config.GEMINI_MODEL_NAME,
         contents=prompt,
     )
     generation_ms = (time.perf_counter() - started) * 1000
@@ -135,7 +139,7 @@ def generate_answer_from_chunks(question, retrieved_chunks):
     return generate_with_usage(question, retrieved_chunks)["answer"]
 
 
-def answer_traced(question, top_k=config.DEFAULT_TOP_K, index=None, metadata=None):
+def answer_traced(question, top_k=config.DEFAULT_TOP_K, index=None, metadata=None, model=None):
     """Run the full pipeline and time each stage separately.
 
     Both front ends (cli.py, app.py) go through this so the monitoring layer
@@ -156,7 +160,7 @@ def answer_traced(question, top_k=config.DEFAULT_TOP_K, index=None, metadata=Non
         chunks = retrieve(question, top_k=top_k)
     retrieval_ms = (time.perf_counter() - started) * 1000
 
-    result = generate_with_usage(question, chunks)
+    result = generate_with_usage(question, chunks, model=model)
     return {"chunks": chunks, "retrieval_ms": retrieval_ms, **result}
 
 
