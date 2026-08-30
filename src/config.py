@@ -35,3 +35,21 @@ DEFAULT_TOP_K = 5
 TEST_QUESTIONS_PATH = PROJECT_ROOT / "eval" / "test_questions.json"
 EVAL_RESULTS_PATH = PROJECT_ROOT / "eval" / "results.md"
 EVAL_K_VALUES = [1, 3, 5]  # report precision/hit rate at each of these k values
+
+# --- Monitoring / telemetry ------------------------------------------------
+# Append-only event log of every question the system answers (see telemetry.py).
+TELEMETRY_LOG_PATH = PROJECT_ROOT / "data" / "telemetry" / "events.jsonl"
+TELEMETRY_ENABLED = True
+
+# Below this top-1 cosine similarity, retrieval is treated as "weak" -- the
+# index had nothing that really matched the question.
+#
+# This number is measured, not guessed. Running 10 on-topic questions and 8
+# deliberately off-topic ones ("What is the capital of Brazil?") through
+# retrieve.py gave cleanly separated top-1 scores:
+#     on-topic  : min 0.394, median 0.600, max 0.823
+#     off-topic : min 0.109, median 0.202, max 0.231
+# No overlap at all, so the threshold sits at the midpoint of that gap
+# (0.231 -> 0.394). Re-measure with `python measure_threshold.py` if the
+# corpus or the embedding model changes -- the number is corpus-specific.
+LOW_CONFIDENCE_THRESHOLD = 0.32

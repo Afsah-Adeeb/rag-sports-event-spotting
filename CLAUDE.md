@@ -26,7 +26,9 @@ cd src
 ../.venv/Scripts/python.exe generate.py "question here"   # full retrieve+generate, one-shot
 ../.venv/Scripts/python.exe cli.py             # interactive Q&A loop
 ../.venv/Scripts/python.exe evaluate.py        # runs eval/test_questions.json -> eval/results.md
-../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat interface)
+../.venv/Scripts/python.exe telemetry.py       # terminal summary of the runtime monitoring log
+../.venv/Scripts/python.exe measure_threshold.py  # re-derive config.LOW_CONFIDENCE_THRESHOLD
+../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat + library + metrics)
 ```
 
 There is no test suite, linter, or build step - this is a linear script pipeline, not a package.
@@ -42,14 +44,21 @@ data/papers/*.pdf
   -> embed_store.py  -> data/vector_store/index.faiss + chunk_metadata.jsonl
   -> retrieve.py      (library: retrieve(question, top_k) -> chunks, used by generate.py/evaluate.py)
   -> generate.py       (library + CLI: retrieve + Gemini call -> grounded, cited answer)
-  -> cli.py            (thin interactive wrapper around generate.generate_answer)
-  -> app.py             (Streamlit web GUI, same wrapper around generate.generate_answer)
+  -> cli.py            (thin interactive wrapper around generate.answer_traced)
+  -> app.py             (Streamlit web GUI: Ask / Library / Metrics tabs)
   -> evaluate.py        reads eval/test_questions.json -> eval/results.md
+  -> telemetry.py       both front ends -> data/telemetry/events.jsonl -> Metrics tab
 ```
 
-`cli.py` and `app.py` are two interchangeable front ends over the same `generate.generate_answer()` --
+`cli.py` and `app.py` are two interchangeable front ends over the same `generate.answer_traced()` --
 all retrieval/generation logic stays framework-agnostic in `retrieve.py`/`generate.py`; the front ends
-only handle presentation.
+only handle presentation. Both log through `telemetry.py`, so monitoring covers the whole pipeline
+rather than only whoever used the GUI.
+
+`generate.py` exposes a small ladder of entry points, narrowest first: `generate_with_usage()` (chunks
+in, answer + tokens + timing out), `answer_traced()` (adds retrieval and times both stages -- what the
+front ends use), and the two original convenience wrappers `generate_answer_from_chunks()` /
+`generate_answer()` kept for `evaluate.py` and backwards compatibility.
 
 All tunable parameters (paths, chunk size/overlap, embedding model name, Gemini model name, top-k,
 eval k-values) live in one place: `src/config.py`. Change knobs there, not inline in the scripts.
@@ -77,6 +86,21 @@ eval k-values) live in one place: `src/config.py`. Change knobs there, not inlin
   all in `evaluate.py`. Gemini model availability shifts over time; if `generate.py`/`evaluate.py` starts
   raising `404 NOT_FOUND` on the model name, list currently available models with
   `client.models.list()` (see `src/generate.py` for client setup) rather than guessing a replacement name.
+- **Monitoring** (`telemetry.py`): every answered question, from both front ends, is appended to
+  `data/telemetry/events.jsonl` as a JSON line; the app's Metrics tab reads it back. Three decisions
+  worth knowing before editing it: (1) the log is **append-only** — feedback arrives after the answer
+  was logged and is written as a separate `feedback` event keyed by `query_id`, then merged in
+  `build_records()`, because concurrent Streamlit sessions appending single lines is safe while
+  read-modify-rewrite races and loses records; (2) **raw signals are stored, judgement flags are
+  recomputed on read** in `_derive_flags()`, so improving the refusal heuristic retroactively fixes
+  historical records instead of leaving the dashboard showing verdicts from an older rule;
+  (3) every public function **swallows its own exceptions** — monitoring must never break the thing it
+  monitors. The headline metric is `hallucination_risk` (weak retrieval + a confident answer);
+  `over_refusal` is its inverse. `looks_like_refusal()` is position-aware on purpose — matching refusal
+  phrases anywhere in the answer misclassified answers that end with a caveat, so the marker must appear
+  in the first ~150 chars. `config.LOW_CONFIDENCE_THRESHOLD` is measured by `measure_threshold.py`, not
+  guessed; re-run it whenever the corpus or embedding model changes. `evaluate.py` deliberately does
+  *not* log telemetry, so batch eval runs don't skew production metrics.
 - **Evaluation** (`evaluate.py`): retrieval quality is automated (Hit Rate@k and Precision@k against
   hand-labeled `correct_papers` per question in `eval/test_questions.json`); answer faithfulness is
   deliberately *not* automated (no LLM-as-judge) — `evaluate.py` instead writes a report

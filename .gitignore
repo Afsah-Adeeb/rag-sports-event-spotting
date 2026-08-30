@@ -10,6 +10,11 @@ __pycache__/
 # Local scratch
 *.pkl
 
+# Runtime monitoring log -- real usage data, regenerated as the app is used.
+# Not committed: it's per-deployment observability, not source, and it would
+# leak whatever questions users typed into the public demo.
+data/telemetry/
+
 # NOTE: data/papers/*.pdf and data/vector_store/ are intentionally COMMITTED
 # so the repo is self-contained and a hosted demo can serve answers without
 # a rebuild step. See README "What's committed and why".

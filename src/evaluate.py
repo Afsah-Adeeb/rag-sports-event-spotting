@@ -34,6 +34,21 @@ A JSON list of objects: {"question": str, "correct_papers": [filename, ...]}.
 `correct_papers` lists every source-paper filename that would count as a
 correct retrieval for that question (usually one, sometimes more if
 multiple papers cover the same topic).
+
+RELATIONSHIP TO telemetry.py
+------------------------------
+This script and telemetry.py answer different questions and are deliberately
+kept separate:
+
+  evaluate.py  -- offline, on questions I hand-labeled, with a ground truth
+                  to score against. "Is retrieval correct?"
+  telemetry.py -- online, on whatever real users actually asked, with no
+                  ground truth. "What is it doing in production, how fast,
+                  and where does it look unsafe?"
+
+Note that evaluate.py deliberately does NOT write telemetry events. A batch
+eval run would otherwise dump 20 synthetic questions into the production
+metrics and skew every latency and confidence number in the dashboard.
 """
 
 import json

@@ -29,12 +29,13 @@ capable for summarizing a handful of retrieved paragraphs.
 """
 
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
 
 import config
-from retrieve import retrieve
+from retrieve import retrieve, search
 
 load_dotenv()  # reads GEMINI_API_KEY from a local .env file (see .env.example)
 
@@ -78,20 +79,85 @@ Question: {question}
 Answer:"""
 
 
+def _extract_usage(response):
+    """Pull token counts off a Gemini response, tolerating SDK shape changes.
+
+    Token counts are how the monitoring layer reports cost, but they're
+    metadata -- if a future SDK version renames these fields, that must not
+    break answering. Missing counts simply show as unknown in the dashboard.
+    """
+    meta = getattr(response, "usage_metadata", None)
+    if meta is None:
+        return {"input_tokens": None, "output_tokens": None}
+    return {
+        "input_tokens": getattr(meta, "prompt_token_count", None),
+        "output_tokens": getattr(meta, "candidates_token_count", None),
+    }
+
+
+def generate_with_usage(question, retrieved_chunks):
+    """Answer from chunks, returning the text plus cost/latency metadata.
+
+    This is the core call. It returns a dict rather than a bare string so the
+    monitoring layer (telemetry.py) can record how long generation took and
+    how many tokens it burned -- measured here, at the actual API boundary,
+    rather than estimated by the caller.
+
+    Returns: {"answer": str, "generation_ms": float,
+              "input_tokens": int|None, "output_tokens": int|None}
+    """
+    prompt = build_prompt(question, retrieved_chunks)
+    client = _get_client()
+
+    started = time.perf_counter()
+    response = client.models.generate_content(
+        model=config.GEMINI_MODEL_NAME,
+        contents=prompt,
+    )
+    generation_ms = (time.perf_counter() - started) * 1000
+
+    return {
+        "answer": response.text,
+        "generation_ms": generation_ms,
+        **_extract_usage(response),
+    }
+
+
 def generate_answer_from_chunks(question, retrieved_chunks):
     """Ask Gemini to answer `question` using an already-retrieved list of chunks.
 
     Split out from generate_answer() so callers that already retrieved chunks
     (e.g. evaluate.py, which needs the chunks anyway for precision@k) don't
     pay for a second, redundant embedding + FAISS search of the same question.
+
+    Thin wrapper over generate_with_usage() for callers that only want the text.
     """
-    prompt = build_prompt(question, retrieved_chunks)
-    client = _get_client()
-    response = client.models.generate_content(
-        model=config.GEMINI_MODEL_NAME,
-        contents=prompt,
-    )
-    return response.text
+    return generate_with_usage(question, retrieved_chunks)["answer"]
+
+
+def answer_traced(question, top_k=config.DEFAULT_TOP_K, index=None, metadata=None):
+    """Run the full pipeline and time each stage separately.
+
+    Both front ends (cli.py, app.py) go through this so the monitoring layer
+    sees identical fields no matter where a question came from. Splitting the
+    two timings matters: retrieval and generation have wildly different cost
+    profiles, and reporting only a combined number hides which one to optimize.
+
+    Pass `index`/`metadata` to search a caller-built index instead of the
+    committed one -- that's how app.py includes session-uploaded papers.
+
+    Returns: {"answer", "chunks", "retrieval_ms", "generation_ms",
+              "input_tokens", "output_tokens"}
+    """
+    started = time.perf_counter()
+    if index is not None:
+        chunks = search(question, index, metadata, top_k=top_k)
+    else:
+        chunks = retrieve(question, top_k=top_k)
+    retrieval_ms = (time.perf_counter() - started) * 1000
+
+    result = generate_with_usage(question, chunks)
+    return {"chunks": chunks, "retrieval_ms": retrieval_ms, **result}
 
 
 def generate_answer(question, top_k=config.DEFAULT_TOP_K):

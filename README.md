@@ -95,6 +95,51 @@ cd "D:\RAG System\src"
 Prints Hit Rate@k / Precision@k to the terminal and writes `eval/results.md` with every generated
 answer next to its retrieved sources, for manual faithfulness review.
 
+## Monitoring
+
+Evaluation tells you if the system is good *on questions you chose, offline*. Monitoring tells you
+what it actually did *on real questions, in production*. Both are needed; they answer different things.
+
+Every answered question — from the web app **and** the CLI — is recorded to an append-only event log
+at `data/telemetry/events.jsonl`. The **Metrics** tab in the app reads that log and shows:
+
+- **Latency split into retrieval vs generation.** These are reported separately on purpose. Retrieval
+  is local CPU work at ~30ms; generation is a network call to Gemini at ~6-12s. Roughly 90% of the
+  wait is the LLM, so optimising FAISS would be wasted effort — that conclusion is only visible
+  because the two stages are timed separately.
+- **Retrieval confidence**, as a histogram of top-1 cosine similarity per question.
+- **Hallucination risk** — the metric that matters most here. It flags answers where retrieval found
+  nothing relevant (top score below `LOW_CONFIDENCE_THRESHOLD`) *but the model answered confidently
+  anyway* instead of saying it didn't know. Those answers are built on irrelevant context and are
+  exactly the ones a human should read. The inverse, **over-refusal** (good retrieval, model declined
+  anyway), is tracked too — that one points at an over-strict prompt.
+- **Corpus coverage** — which papers real questions actually reach. A paper that is never retrieved is
+  either off-topic for what people ask or extracted/chunked badly.
+- **User ratings** — 👍/👎 on each answer, written as separate feedback events.
+- The raw log, as a table and a JSONL download.
+
+**The confidence threshold is measured, not guessed.** `measure_threshold.py` runs a batch of
+on-topic questions and a batch of deliberately off-topic ones and compares the score distributions:
+```
+cd "D:\RAG System\src"
+..\.venv\Scripts\python.exe measure_threshold.py
+```
+On the current 9-paper corpus the two groups separate cleanly (on-topic top-1 never below 0.394,
+off-topic never above 0.231), so `config.LOW_CONFIDENCE_THRESHOLD` sits at the midpoint, 0.32.
+Re-run this after changing the corpus or the embedding model — the number is corpus-specific.
+
+Terminal summary without opening the app:
+```
+cd "D:\RAG System\src"
+..\.venv\Scripts\python.exe telemetry.py
+```
+
+**Storage caveat, stated plainly:** the log is a local file, so on Streamlit Community Cloud (whose
+filesystem is ephemeral) it covers the current app instance only and resets on restart or redeploy.
+Locally it persists. Moving to a database means reimplementing two functions in `telemetry.py`
+(`_append` and `load_events`) and nothing else. The log is git-ignored — it is per-deployment runtime
+data, and committing it would publish whatever visitors typed into the public demo.
+
 ## What's committed and why
 
 Unusually for a repo, the PDFs (`data/papers/`) and the prebuilt FAISS index (`data/vector_store/`)
