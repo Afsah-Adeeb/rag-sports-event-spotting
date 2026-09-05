@@ -25,21 +25,21 @@ cd src
 ../.venv/Scripts/python.exe retrieve.py "question here"   # manual retrieval sanity check
 ../.venv/Scripts/python.exe generate.py "question here"   # full retrieve+generate, one-shot
 ../.venv/Scripts/python.exe cli.py             # interactive Q&A loop
-../.venv/Scripts/python.exe evaluate.py        # runs eval/test_questions.json -> eval/results.md
+../.venv/Scripts/python.exe eval/evaluate.py        # runs eval/test_questions.json -> eval/results.md
 ../.venv/Scripts/python.exe telemetry.py       # terminal summary of the runtime monitoring log
-../.venv/Scripts/python.exe export_text.py     # PDFs -> data/papers_text/*.txt (for agentic arm)
-../.venv/Scripts/python.exe agent_rag.py "question"   # agentic (grep/read loop) answer
-../.venv/Scripts/python.exe compare_rag.py     # semantic vs agentic -> eval/comparison.md
-../.venv/Scripts/python.exe measure_threshold.py  # re-derive config.LOW_CONFIDENCE_THRESHOLD
+../.venv/Scripts/python.exe agentic/export_text.py     # PDFs -> data/papers_text/*.txt (for agentic arm)
+../.venv/Scripts/python.exe agentic/agent_rag.py "question"   # agentic (grep/read loop) answer
+../.venv/Scripts/python.exe agentic/compare_rag.py     # semantic vs agentic -> eval/comparison.md
+../.venv/Scripts/python.exe eval/measure_threshold.py  # re-derive config.LOW_CONFIDENCE_THRESHOLD
 
 # Evaluation suite. The first four make NO API calls (retrieval scoring is local).
-../.venv/Scripts/python.exe evaluate.py        # retrieval: hit rate, MRR, coverage, per type
-../.venv/Scripts/python.exe baselines.py       # vs BM25 and random -> eval/baselines.md
-../.venv/Scripts/python.exe sweep.py           # chunk size x top-k grid -> eval/sweep.md
-../.venv/Scripts/python.exe robustness.py      # typos/casual/keywords -> eval/robustness.md
-../.venv/Scripts/python.exe evaluate.py --generate --pause 4.5   # + answers, facts, refusal
-../.venv/Scripts/python.exe closed_book.py --pause 4.5           # -> eval/closed_book.md
-../.venv/Scripts/python.exe judge.py           # LLM judge cross-check -> eval/judge.md
+../.venv/Scripts/python.exe eval/evaluate.py        # retrieval: hit rate, MRR, coverage, per type
+../.venv/Scripts/python.exe eval/baselines.py       # vs BM25 and random -> eval/baselines.md
+../.venv/Scripts/python.exe eval/sweep.py           # chunk size x top-k grid -> eval/sweep.md
+../.venv/Scripts/python.exe eval/robustness.py      # typos/casual/keywords -> eval/robustness.md
+../.venv/Scripts/python.exe eval/evaluate.py --generate --pause 4.5   # + answers, facts, refusal
+../.venv/Scripts/python.exe eval/closed_book.py --pause 4.5           # -> eval/closed_book.md
+../.venv/Scripts/python.exe eval/judge.py           # LLM judge cross-check -> eval/judge.md
 
 ../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat + library + metrics + evaluation)
 ```

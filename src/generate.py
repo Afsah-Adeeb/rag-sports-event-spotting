@@ -42,6 +42,17 @@ load_dotenv()  # reads GEMINI_API_KEY from a local .env file (see .env.example)
 _client = None
 
 
+class DailyQuotaExhausted(RuntimeError):
+    """The free tier's per-day request quota is gone. Waiting will not help.
+
+    Lives here, next to the Gemini client, because several unrelated callers
+    need to catch it -- the agentic arm, the evaluation suite, and CRAG. It
+    used to live in agent_rag.py, which meant every one of them had to import
+    the agent machinery just to name an exception, and made it easy to define
+    a second class with the same name that `except` clauses would miss.
+    """
+
+
 def _get_client():
     global _client
     if _client is None:

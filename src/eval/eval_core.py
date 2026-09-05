@@ -68,13 +68,22 @@ import random
 import time
 from collections import defaultdict
 
+# This script lives in a subfolder but imports the pipeline modules that sit in
+# src/ (config, retrieve, generate, telemetry). Running a script puts its OWN
+# folder on the import path, not its parent, so the parent is added explicitly.
+# Siblings inside this folder import normally.
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+
 import config
 
-# Re-exported rather than redefined. compare_rag.py already catches this exact
-# class, and a second class with the same name in another module would not be
-# caught by that `except` -- a benchmark would die on a quota error it thinks
-# it handles.
-from agent_rag import DailyQuotaExhausted  # noqa: F401
+# Imported rather than redefined. compare_rag.py catches this exact class, and
+# a second class with the same name in another module would not be caught by
+# that `except` -- a benchmark would die on a quota error it thinks it handles.
+# It lives in generate.py, next to the Gemini client, so the evaluation suite
+# does not have to import the agentic machinery just to name an exception.
+from generate import DailyQuotaExhausted  # noqa: F401
 
 # Fixed so intervals are reproducible across runs. See module docstring.
 BOOTSTRAP_SEED = 20260831

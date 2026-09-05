@@ -320,14 +320,14 @@ double the prompt tokens on every query, which is not a trade worth making.
 ```
 cd "D:\RAG System\src"
 
-..\.venv\Scripts\python.exe evaluate.py        # retrieval scores          (free)
-..\.venv\Scripts\python.exe baselines.py       # vs BM25 and random        (free)
-..\.venv\Scripts\python.exe sweep.py           # chunk size / top-k grid   (free)
-..\.venv\Scripts\python.exe robustness.py      # typos, casual, keywords   (free)
+..\.venv\Scripts\python.exe eval/evaluate.py        # retrieval scores          (free)
+..\.venv\Scripts\python.exe eval/baselines.py       # vs BM25 and random        (free)
+..\.venv\Scripts\python.exe eval/sweep.py           # chunk size / top-k grid   (free)
+..\.venv\Scripts\python.exe eval/robustness.py      # typos, casual, keywords   (free)
 
-..\.venv\Scripts\python.exe evaluate.py --generate --pause 4.5  # answers + refusal
-..\.venv\Scripts\python.exe closed_book.py --pause 4.5          # what retrieval is worth
-..\.venv\Scripts\python.exe judge.py                            # LLM judge cross-check
+..\.venv\Scripts\python.exe eval/evaluate.py --generate --pause 4.5  # answers + refusal
+..\.venv\Scripts\python.exe eval/closed_book.py --pause 4.5          # what retrieval is worth
+..\.venv\Scripts\python.exe eval/judge.py                            # LLM judge cross-check
 ```
 
 The first four make **no API calls at all** — retrieval scoring is local. That is what
@@ -356,8 +356,8 @@ at next, until it can answer.
 `compare_rag.py` runs both over the same labelled questions and writes `eval/comparison.md`:
 ```
 cd "D:\RAG System\src"
-..\.venv\Scripts\python.exe export_text.py     # one-time: PDFs -> greppable text
-..\.venv\Scripts\python.exe compare_rag.py
+..\.venv\Scripts\python.exe agentic/export_text.py     # one-time: PDFs -> greppable text
+..\.venv\Scripts\python.exe agentic/compare_rag.py
 ```
 
 **What is held constant**, so the result measures retrieval strategy and nothing else: the same model
@@ -409,7 +409,7 @@ at `data/telemetry/events.jsonl`. The **Metrics** tab in the app reads that log 
 on-topic questions and a batch of deliberately off-topic ones and compares the score distributions:
 ```
 cd "D:\RAG System\src"
-..\.venv\Scripts\python.exe measure_threshold.py
+..\.venv\Scripts\python.exe eval/measure_threshold.py
 ```
 On the current 9-paper corpus the two groups separate cleanly (on-topic top-1 never below 0.394,
 off-topic never above 0.231), so `config.LOW_CONFIDENCE_THRESHOLD` sits at the midpoint, 0.32.

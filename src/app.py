@@ -31,8 +31,10 @@ Metrics  -- what the system actually did: latency per stage, retrieval
 """
 
 import os
+import sys
 import uuid
 from collections import defaultdict
+from pathlib import Path
 
 import faiss
 import pandas as pd
@@ -58,6 +60,12 @@ from generate import answer_traced  # noqa: E402
 from ingest import process_pdf_bytes  # noqa: E402
 from retrieve import base_index_and_metadata, embed_texts  # noqa: E402
 
+# The Evaluation tab reads the headline numbers the evaluation suite writes.
+# That suite lives in src/eval/, which is not on the import path when app.py
+# runs from src/, so it is added here. This is the only place the app reaches
+# into the evaluation code, and it only reads a JSON summary -- the app never
+# runs an evaluation itself.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "eval"))  # noqa: E402
 import eval_core  # noqa: E402  (evaluation summary for the Evaluation tab)
 
 st.set_page_config(

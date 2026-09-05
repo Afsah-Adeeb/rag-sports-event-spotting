@@ -54,8 +54,17 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+# This script lives in a subfolder but imports the pipeline modules that sit in
+# src/ (config, retrieve, generate, telemetry). Running a script puts its OWN
+# folder on the import path, not its parent, so the parent is added explicitly.
+# Siblings inside this folder import normally.
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+
 import agent_tools
 import config
+from generate import DailyQuotaExhausted  # noqa: F401  (re-exported)
 
 load_dotenv()
 
@@ -114,8 +123,9 @@ def _tool_config():
     )
 
 
-class DailyQuotaExhausted(RuntimeError):
-    """The free tier's per-day request quota is gone. Waiting will not help."""
+# Defined in generate.py (next to the Gemini client) and re-exported here so
+# existing `agent_rag.DailyQuotaExhausted` references keep working. One class,
+# so an `except` in compare_rag.py catches what eval_core.py raises.
 
 
 def _request_with_retry(contents, cfg, model=None):

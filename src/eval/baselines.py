@@ -56,6 +56,14 @@ import re
 import zlib
 from collections import Counter
 
+# This script lives in a subfolder but imports the pipeline modules that sit in
+# src/ (config, retrieve, generate, telemetry). Running a script puts its OWN
+# folder on the import path, not its parent, so the parent is added explicitly.
+# Siblings inside this folder import normally.
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+
 import config
 import eval_core as ec
 

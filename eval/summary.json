@@ -125,29 +125,11 @@
     "mrr": null
    }
   },
-  "correct_refusal": {
-   "n": 14,
-   "value": 1.0,
-   "lo": 0.7846891971830681,
-   "hi": 1.0,
-   "kind": "proportion"
-  },
-  "over_refusal": {
-   "n": 41,
-   "value": 0.12195121951219512,
-   "lo": 0.053233364675755734,
-   "hi": 0.25544211524758664,
-   "kind": "proportion"
-  },
-  "fact_coverage": {
-   "n": 41,
-   "value": 0.7113821138211384,
-   "lo": 0.6260162601626017,
-   "hi": 0.7967479674796747,
-   "kind": "mean"
-  },
+  "correct_refusal": null,
+  "over_refusal": null,
+  "fact_coverage": null,
   "hallucination_candidates": [],
-  "updated": "2026-08-31 21:49"
+  "updated": "2026-09-05 17:58"
  },
  "robustness": {
   "top_k": 5,
@@ -320,7 +302,7 @@
     }
    }
   },
-  "updated": "2026-08-31 21:50"
+  "updated": "2026-09-05 17:58"
  },
  "sweep": {
   "chunk_sizes": [
