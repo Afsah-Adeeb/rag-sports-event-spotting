@@ -1,20 +1,616 @@
-[
-  {
-    "question": "What is the E2E-Spot architecture?",
-    "correct_papers": ["Spotting Temporally Precise, Fine-Grained Events in Video.pdf"],
-    "notes": "example question - replace with your own set of 15-20"
+{
+  "_schema": {
+    "id": "stable identifier, referenced in every report",
+    "question": "the question as a user would ask it",
+    "type": "simple | paraphrase | comparison | multi_paper | unanswerable",
+    "answerable": "true if the corpus contains the answer; false means the system SHOULD refuse",
+    "correct_papers": "filenames that count as a correct retrieval (empty when unanswerable)",
+    "must_mention": "required facts. Each fact is a list of accepted spellings -- the fact counts as present if ANY of them appears (case-insensitive). Written this way because we already hit a real matching failure caused by hyphenation ('Temporal-Discriminability' vs 'temporal discriminability').",
+    "nice_to_mention": "optional facts; tracked but not required. TREC calls these 'okay' nuggets, as opposed to 'vital' ones.",
+    "note": "why this question is in the set, and what failure it is meant to catch"
   },
-  {
-    "question": "How does T-DEED handle temporal discriminability?",
-    "correct_papers": ["T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf"],
-    "notes": "example question - replace with your own set of 15-20"
-  },
-  {
-    "question": "What datasets does SoccerNet provide?",
-    "correct_papers": [
-      "Deep learning for action spotting in association football videos.pdf",
-      "Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf"
-    ],
-    "notes": "example question with multiple acceptable source papers - replace with your own set of 15-20"
-  }
-]
+  "questions": [
+    {
+      "id": "S01",
+      "type": "simple",
+      "answerable": true,
+      "question": "What are the main components of the E2E-Spot architecture?",
+      "correct_papers": ["Spotting Temporally Precise, Fine-Grained Events in Video.pdf"],
+      "must_mention": [["RegNet"], ["GSM", "Gate Shift"], ["GRU", "gated recurrent"]],
+      "nice_to_mention": [["2D CNN", "2D convolutional"], ["bidirectional"]],
+      "note": "Core architecture fact. Baseline sanity check."
+    },
+    {
+      "id": "S02",
+      "type": "simple",
+      "answerable": true,
+      "question": "Which datasets did the E2E-Spot authors add frame-accurate annotations to?",
+      "correct_papers": ["Spotting Temporally Precise, Fine-Grained Events in Video.pdf"],
+      "must_mention": [["Tennis"], ["Figure Skating", "FigureSkating"]],
+      "nice_to_mention": [["FineGym"], ["FineDiving"]],
+      "note": "Dataset contribution, stated in the abstract and again in section 4."
+    },
+    {
+      "id": "S03",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is the SGP-Mixer layer in T-DEED and what problem does it solve?",
+      "correct_papers": ["T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf"],
+      "must_mention": [["SGP"], ["temporal scale", "multiple scale", "different scale"], ["discriminab"]],
+      "nice_to_mention": [["skip connection"], ["residual"]],
+      "note": "Tests whether retrieval reaches the contributions list, not just the abstract."
+    },
+    {
+      "id": "S04",
+      "type": "simple",
+      "answerable": true,
+      "question": "On which datasets is T-DEED evaluated, and by how much does it improve over E2E-Spot?",
+      "correct_papers": ["T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf"],
+      "must_mention": [["FigureSkating", "Figure Skating"], ["FineDiving"], ["4.83", "3.07", "1.15"]],
+      "nice_to_mention": [["mAP"], ["FS-Comp", "FS-Perf"]],
+      "note": "Requires a specific number, not just a topic match. Catches vague hand-waving answers."
+    },
+    {
+      "id": "S05",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is the SoftIC loss and what problem does it address?",
+      "correct_papers": ["Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf"],
+      "must_mention": [["class imbalance", "imbalance"], ["contrastive"], ["compact", "separab"]],
+      "nice_to_mention": [["Soft Instance Contrastive"]],
+      "note": "Named loss function with a stated motivation."
+    },
+    {
+      "id": "S06",
+      "type": "simple",
+      "answerable": true,
+      "question": "What does the ASTRM module do?",
+      "correct_papers": ["Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf"],
+      "must_mention": [["ASTRM", "Adaptive Spatio-Temporal Refinement"], ["spatial", "spatio"], ["temporal"]],
+      "nice_to_mention": [["feature extractor"]],
+      "note": "Acronym-only question: tests whether a bare acronym retrieves the right paper."
+    },
+    {
+      "id": "S07",
+      "type": "simple",
+      "answerable": true,
+      "question": "What are the two limitations of the Gate Shift Module that MFS is designed to fix?",
+      "correct_papers": ["Multi-Focus Temporal Shifting for Precise Event.pdf"],
+      "must_mention": [["receptive field", "temporal range", "adjacent"], ["spatial select", "salient", "spatial adapt"]],
+      "nice_to_mention": [["multi-scale", "multi scale"], ["Group Focus"]],
+      "note": "Two-part answer, so a partial answer should score partially rather than pass or fail."
+    },
+    {
+      "id": "S08",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is the Table Tennis Australia dataset and how large is it?",
+      "correct_papers": ["Multi-Focus Temporal Shifting for Precise Event.pdf"],
+      "must_mention": [["table tennis"], ["4,800", "4800"]],
+      "nice_to_mention": [["first"], ["event density"]],
+      "note": "Requires a number that appears exactly once in the whole corpus."
+    },
+    {
+      "id": "S09",
+      "type": "simple",
+      "answerable": true,
+      "question": "Why does applying DINO directly to precise event spotting not work?",
+      "correct_papers": ["Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"],
+      "must_mention": [["DINO"], ["boundary", "motion cue"], ["noise", "suppress", "smooth"]],
+      "nice_to_mention": [["projection head", "projection-head"], ["supervised guidance"]],
+      "note": "A negative result. Exactly the kind of finding a careless model inverts into a positive one."
+    },
+    {
+      "id": "S10",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is Transformer Gate Shift?",
+      "correct_papers": ["Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"],
+      "must_mention": [["multi-scale", "multi scale"], ["Vision Transformer", "ViT"], ["motion", "temporal"]],
+      "nice_to_mention": [["gated", "gate"]],
+      "note": "Name collides with 'Gate Shift Module' in three other papers. Tests disambiguation."
+    },
+    {
+      "id": "S11",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is temporal misalignment in action spotting labels, and what causes it?",
+      "correct_papers": ["Towards Precise Action Spotting - Addressing Temporal Misalignment in Labels with Dynamic Label Assignment.pdf"],
+      "must_mention": [["annotation error", "human annotation", "annotator"], ["boundar", "misalign"]],
+      "nice_to_mention": [["ground-truth", "ground truth"]],
+      "note": "Definitional question that also demands the stated cause."
+    },
+    {
+      "id": "S12",
+      "type": "simple",
+      "answerable": true,
+      "question": "How does the dynamic label assignment method work?",
+      "correct_papers": ["Towards Precise Action Spotting - Addressing Temporal Misalignment in Labels with Dynamic Label Assignment.pdf"],
+      "must_mention": [["minimum-cost", "minimum cost", "matching"], ["object detection"], ["offset"]],
+      "nice_to_mention": [["class score"], ["temporal domain"]],
+      "note": "Mechanism question. A good answer names the idea it borrowed and from where."
+    },
+    {
+      "id": "S13",
+      "type": "simple",
+      "answerable": true,
+      "question": "How many games does SoccerNet Action Spotting contain, and how many annotated actions are in SoccerNet-v2?",
+      "correct_papers": ["Deep learning for action spotting in association football videos.pdf"],
+      "must_mention": [["550"], ["110,458", "110458"], ["17"]],
+      "nice_to_mention": [["broadcast"]],
+      "note": "Three numbers from two different sections, so one chunk is not enough."
+    },
+    {
+      "id": "S14",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is the difference between tight and loose average-mAP in SoccerNet?",
+      "correct_papers": ["Deep learning for action spotting in association football videos.pdf"],
+      "must_mention": [["tight"], ["loose"], ["tolerance", "second"]],
+      "nice_to_mention": [["60"], ["interval"]],
+      "note": "Evaluation-protocol detail buried deep in a metrics section."
+    },
+    {
+      "id": "S15",
+      "type": "simple",
+      "answerable": true,
+      "question": "What is the difference between Temporal Action Localization, Action Spotting, and Precise Event Spotting?",
+      "correct_papers": ["Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf"],
+      "must_mention": [["segment", "interval", "duration"], ["timestamp", "keyframe"], ["frame-level", "exact frame", "frame level"]],
+      "nice_to_mention": [["taxonomy"]],
+      "note": "The survey's headline contribution. Three-way distinction, easy to blur."
+    },
+    {
+      "id": "S16",
+      "type": "simple",
+      "answerable": true,
+      "question": "What criticisms does the survey make of existing benchmark datasets and evaluation protocols?",
+      "correct_papers": ["Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf"],
+      "must_mention": [["broadcast"], ["permissive", "multi-label"]],
+      "nice_to_mention": [["elite"], ["temporal accuracy"]],
+      "note": "A critique rather than a fact, which is harder to keep grounded."
+    },
+    {
+      "id": "S17",
+      "type": "simple",
+      "answerable": true,
+      "question": "How is audio processed in the multimodal soccer event detection paper?",
+      "correct_papers": ["Automated Event Detection and Classification in Soccer - The Potential of Using Multiple Modalities.pdf"],
+      "must_mention": [["Log-Mel", "log mel", "spectrogram"], ["ResNet"]],
+      "nice_to_mention": [["2D"], ["sample window"]],
+      "note": "The only paper in the corpus that deals with audio at all."
+    },
+    {
+      "id": "S18",
+      "type": "simple",
+      "answerable": true,
+      "question": "Does adding audio always improve soccer event detection?",
+      "correct_papers": ["Automated Event Detection and Classification in Soccer - The Potential of Using Multiple Modalities.pdf"],
+      "must_mention": [["not always", "detrimental", "depends", "some events", "certain"], ["card", "substitution"]],
+      "nice_to_mention": [["tolerance"]],
+      "note": "Nuanced yes-and-no. A model that skims the abstract answers a flat 'yes'."
+    },
+    {
+      "id": "P01",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "Which model here is small enough to train on a single graphics card?",
+      "correct_papers": ["Spotting Temporally Precise, Fine-Grained Events in Video.pdf"],
+      "must_mention": [["single GPU", "one GPU"], ["E2E-Spot"]],
+      "nice_to_mention": [["compact", "lightweight"]],
+      "note": "Says 'graphics card'; the paper says 'GPU'. Keyword search should struggle here."
+    },
+    {
+      "id": "P02",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "How do these systems handle the fact that some events happen far more often than others?",
+      "correct_papers": ["Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf"],
+      "must_mention": [["class imbalance", "imbalance"], ["SoftIC", "contrastive"]],
+      "nice_to_mention": [["underrepresented", "rare"]],
+      "note": "Describes class imbalance without ever using the term. Pure semantic test."
+    },
+    {
+      "id": "P03",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "What happens when the people labelling the videos put the timestamp slightly in the wrong place?",
+      "correct_papers": ["Towards Precise Action Spotting - Addressing Temporal Misalignment in Labels with Dynamic Label Assignment.pdf"],
+      "must_mention": [["misalign"], ["label assignment"]],
+      "nice_to_mention": [["annotation error"]],
+      "note": "Everyday phrasing of 'temporal misalignment in ground-truth labels'."
+    },
+    {
+      "id": "P04",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "Is there any work here that uses sound as well as pictures?",
+      "correct_papers": ["Automated Event Detection and Classification in Soccer - The Potential of Using Multiple Modalities.pdf"],
+      "must_mention": [["audio"], ["visual", "video"]],
+      "nice_to_mention": [["fusion"], ["multimodal", "multiple modalities"]],
+      "note": "'Sound' and 'pictures' never appear in the corpus; 'audio' and 'visual' do."
+    },
+    {
+      "id": "P05",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "What can you do if you do not have enough labelled training footage?",
+      "correct_papers": ["Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"],
+      "must_mention": [["semi-supervised", "label-efficient", "distillation"], ["10%", "unlabeled", "unlabelled"]],
+      "nice_to_mention": [["80%"], ["warm-up", "ramp-up"]],
+      "note": "Casual phrasing of the label-efficiency problem."
+    },
+    {
+      "id": "P06",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "How do researchers score whether a spotting system got the moment right?",
+      "correct_papers": [
+        "Deep learning for action spotting in association football videos.pdf",
+        "Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf"
+      ],
+      "must_mention": [["mAP", "mean Average Precision"], ["tolerance"]],
+      "nice_to_mention": [["δ", "time tolerance"]],
+      "note": "Plain-language question about the evaluation metric."
+    },
+    {
+      "id": "P07",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "Which method borrows an idea from object detection and applies it to time instead of space?",
+      "correct_papers": ["Towards Precise Action Spotting - Addressing Temporal Misalignment in Labels with Dynamic Label Assignment.pdf"],
+      "must_mention": [["object detection"], ["matching"], ["temporal", "time"]],
+      "nice_to_mention": [["minimum-cost", "minimum cost"]],
+      "note": "Describes the mechanism instead of naming it."
+    },
+    {
+      "id": "P08",
+      "type": "paraphrase",
+      "answerable": true,
+      "question": "Is there a benchmark for a racket sport played indoors on a small table?",
+      "correct_papers": ["Multi-Focus Temporal Shifting for Precise Event.pdf"],
+      "must_mention": [["table tennis"], ["dataset", "benchmark"]],
+      "nice_to_mention": [["4,800", "4800"], ["Australia"]],
+      "note": "Describes table tennis without naming it. Essentially impossible for keyword search."
+    },
+    {
+      "id": "C01",
+      "type": "comparison",
+      "answerable": true,
+      "question": "How does T-DEED's approach to temporal resolution differ from E2E-Spot's?",
+      "correct_papers": [
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf"
+      ],
+      "must_mention": [["encoder-decoder"], ["resolution"], ["E2E-Spot"]],
+      "nice_to_mention": [["skip connection"], ["GRU"]],
+      "note": "Needs both papers, or one paper's related-work section."
+    },
+    {
+      "id": "C02",
+      "type": "comparison",
+      "answerable": true,
+      "question": "Both MFS and Transformer Gate Shift extend the Gate Shift Module. How do they differ?",
+      "correct_papers": [
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"
+      ],
+      "must_mention": [["multi-scale", "multi scale"], ["Vision Transformer", "ViT"], ["CNN"]],
+      "nice_to_mention": [["Group Focus"], ["plug-and-play"]],
+      "note": "Two papers with overlapping authors and near-identical module names. Confusion trap."
+    },
+    {
+      "id": "C03",
+      "type": "comparison",
+      "answerable": true,
+      "question": "Compare how T-DEED and the Sony paper each try to make frame-level features more distinguishable.",
+      "correct_papers": [
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf"
+      ],
+      "must_mention": [["SGP", "discriminab"], ["SoftIC", "contrastive", "ASTRM"]],
+      "nice_to_mention": [["token"], ["compact"]],
+      "note": "Same goal, different mechanisms, two papers that never cite each other on this point."
+    },
+    {
+      "id": "C04",
+      "type": "comparison",
+      "answerable": true,
+      "question": "How computationally efficient is MFS compared with the heavier architectures it is measured against?",
+      "correct_papers": ["Multi-Focus Temporal Shifting for Precise Event.pdf"],
+      "must_mention": [["45"], ["GFLOP"]],
+      "nice_to_mention": [["67.24", "67"], ["1.3%"]],
+      "note": "Requires reading a specific efficiency comparison rather than the general claim."
+    },
+    {
+      "id": "C05",
+      "type": "comparison",
+      "answerable": true,
+      "question": "Do E2E-Spot and T-DEED use the same backbone sizes?",
+      "correct_papers": [
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf"
+      ],
+      "must_mention": [["200MF"], ["800MF"], ["RegNet"]],
+      "nice_to_mention": [["both"]],
+      "note": "Answer lives inside a results table. Tests whether table text survived PDF extraction."
+    },
+    {
+      "id": "C06",
+      "type": "comparison",
+      "answerable": true,
+      "question": "Which papers here tackle problems with the training labels rather than the model architecture?",
+      "correct_papers": [
+        "Towards Precise Action Spotting - Addressing Temporal Misalignment in Labels with Dynamic Label Assignment.pdf",
+        "Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"
+      ],
+      "must_mention": [["misalign", "Dynamic Label Assignment"], ["label"]],
+      "nice_to_mention": [["semi-supervised", "label-efficient"]],
+      "note": "Requires categorising papers, not just recalling one of them."
+    },
+    {
+      "id": "C07",
+      "type": "comparison",
+      "answerable": true,
+      "question": "How does the survey's definition of Action Spotting compare with how the SoccerNet paper uses the term?",
+      "correct_papers": [
+        "Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf",
+        "Deep learning for action spotting in association football videos.pdf"
+      ],
+      "must_mention": [["timestamp", "keyframe"], ["SoccerNet"]],
+      "nice_to_mention": [["single"], ["untrimmed"]],
+      "note": "Two sources, same term, slightly different framing."
+    },
+    {
+      "id": "M01",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "Which papers in this collection introduce a new dataset or benchmark, and what are they?",
+      "correct_papers": [
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf",
+        "Deep learning for action spotting in association football videos.pdf"
+      ],
+      "must_mention": [["Table Tennis"], ["SoccerNet"], ["Tennis", "Figure Skating", "FigureSkating"]],
+      "nice_to_mention": [["4,800", "4800"], ["550"]],
+      "note": "Needs at least three different papers represented in the top-k."
+    },
+    {
+      "id": "M02",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "What are the different ways these papers capture long-range temporal context?",
+      "correct_papers": [
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf",
+        "Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf",
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Multi-Focus Temporal Shifting for Precise Event.pdf"
+      ],
+      "must_mention": [["GRU"], ["encoder-decoder", "multi-scale", "multi scale"], ["long-range", "long range"]],
+      "nice_to_mention": [["temporal module"]],
+      "note": "Breadth question. The top-5 must span several papers, not five chunks of one."
+    },
+    {
+      "id": "M03",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "Which papers build on or compare against E2E-Spot?",
+      "correct_papers": [
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf",
+        "Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"
+      ],
+      "must_mention": [["T-DEED"], ["E2E-Spot"], ["baseline", "compare", "outperform"]],
+      "nice_to_mention": [["MFS"]],
+      "note": "E2E-Spot is cited nearly everywhere. Tests whether breadth survives a very common term."
+    },
+    {
+      "id": "M04",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "What evaluation metric is used across most of these papers?",
+      "correct_papers": [
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf",
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Deep learning for action spotting in association football videos.pdf"
+      ],
+      "must_mention": [["mAP", "mean Average Precision"]],
+      "nice_to_mention": [["tolerance"], ["Average Precision"]],
+      "note": "Easy fact, but only genuinely correct if drawn from several papers."
+    },
+    {
+      "id": "M05",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "Which sports are covered across this collection of papers?",
+      "correct_papers": [
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf",
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Deep learning for action spotting in association football videos.pdf",
+        "T-DEED - Temporal-Discriminability Enhancer Encoder-Decoder for Precise.pdf"
+      ],
+      "must_mention": [["soccer", "football"], ["tennis"], ["figure skating", "figureskating", "diving", "finediving"]],
+      "nice_to_mention": [["table tennis"], ["gymnastics", "FineGym"]],
+      "note": "Corpus-coverage question. A good answer touches nearly every paper."
+    },
+    {
+      "id": "M06",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "What is the Gate Shift Module, and which papers here use or extend it?",
+      "correct_papers": [
+        "Spotting Temporally Precise, Fine-Grained Events in Video.pdf",
+        "Multi-Focus Temporal Shifting for Precise Event.pdf",
+        "Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"
+      ],
+      "must_mention": [["Gate Shift", "GSM"], ["E2E-Spot"], ["MFS", "Multi-Focus", "Transformer Gate Shift"]],
+      "nice_to_mention": [["2D CNN"], ["shift"]],
+      "note": "One concept threaded through three papers."
+    },
+    {
+      "id": "M07",
+      "type": "multi_paper",
+      "answerable": true,
+      "question": "Across these papers, what are the main open challenges in precise event spotting?",
+      "correct_papers": [
+        "Deep Learning for Sports Video Event Detection - Tasks, Datasets, Methods, and Challenges.pdf",
+        "Precise Event Spotting in Sports Videos - Solving Long-Range Dependency and Class Imbalance.pdf",
+        "Temporal Feature Distillation for Label - Efficient Precise Event Spotting in Sports Videos.pdf"
+      ],
+      "must_mention": [["imbalance"], ["label"], ["long-range", "long range", "temporal"]],
+      "nice_to_mention": [["broadcast"], ["occlusion", "camera motion"]],
+      "note": "Open-ended synthesis. The single most likely question in the set to drift off-source."
+    },
+    {
+      "id": "U01",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What mAP does E2E-Spot achieve on cricket boundary detection?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: cricket appears exactly once in the corpus, as a definition example in the Sony paper, with no results attached. Retrieval will surface it confidently."
+    },
+    {
+      "id": "S19",
+      "type": "simple",
+      "answerable": true,
+      "question": "How does T-DEED perform on the SoccerNet Ball Action Spotting benchmark?",
+      "correct_papers": ["Deep learning for action spotting in association football videos.pdf"],
+      "must_mention": [["T-DEED"], ["Ball Action"], ["winning", "won", "73.39"]],
+      "nice_to_mention": [["RegNetY", "RegNet"], ["Gate-Shift", "GSF"], ["2024"]],
+      "note": "MISLABELLED AT FIRST, and the evaluation caught it. This was written as an unanswerable trap on the reasoning that the T-DEED paper mentions SoccerNet Ball Action Spotting without evaluating on it -- which is true. But the SoccerNet chapter covers T-DEED's win in detail, with its scores in a results table, so the answer is in the corpus, just in a different paper. The system answered it correctly and was scored as hallucinating. Kept as a reminder that a wrong label looks exactly like a model failure until someone reads the flagged case."
+    },
+    {
+      "id": "U03",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What accuracy do these methods achieve on basketball free-throw spotting?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: basketball appears only as an illustrative example in the survey's task definitions."
+    },
+    {
+      "id": "U04",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "How many GPU-hours does it take to train MFS?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Never reported. A plausible-sounding efficiency question next to real GFLOP numbers."
+    },
+    {
+      "id": "U05",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What licence is the Table Tennis Australia dataset released under?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: 'CC BY' does appear in the corpus, but as the licence of a paper, not of that dataset."
+    },
+    {
+      "id": "U06",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "How many annotators labelled SoccerNet-v2, and what was their inter-annotator agreement?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Zero occurrences of inter-annotator agreement anywhere in the corpus."
+    },
+    {
+      "id": "U07",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What is the inference latency of the Sony ASTRM model in milliseconds?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: latency numbers do exist in the corpus, but only in the multimodal soccer paper."
+    },
+    {
+      "id": "U08",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "How does T-DEED perform when tested on a sport it was never trained on?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Cross-sport generalisation is never evaluated for T-DEED."
+    },
+    {
+      "id": "U09",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "Which of these methods can run on a mobile phone?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: 'mobile' appears once in the corpus, inside a MoViNets citation title only."
+    },
+    {
+      "id": "U10",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What is the carbon footprint of training these event spotting models?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Zero occurrences. A clean negative control -- retrieval confidence should be visibly low."
+    },
+    {
+      "id": "U11",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "Which commercial broadcasters have deployed E2E-Spot in production?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: commercial use and industry deployment are discussed generally, never for E2E-Spot."
+    },
+    {
+      "id": "U12",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "Do any of these methods support live streaming input rather than recorded video?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Zero occurrences of 'streaming' in the corpus."
+    },
+    {
+      "id": "U13",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What does it cost in US dollars to annotate one full SoccerNet game?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: dollar figures exist (global sports market revenue) but never annotation cost."
+    },
+    {
+      "id": "U14",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "What privacy or ethical concerns do these papers raise about player tracking?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "Zero occurrences of privacy or ethics. Highly plausible for the domain, absent from the corpus."
+    },
+    {
+      "id": "U15",
+      "type": "unanswerable",
+      "answerable": false,
+      "question": "How does the multimodal soccer paper separate crowd noise between home and away stadiums?",
+      "correct_papers": [],
+      "must_mention": [],
+      "nice_to_mention": [],
+      "note": "TRAP: the right paper, the right topic area, at a level of detail that does not exist."
+    }
+  ]
+}

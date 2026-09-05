@@ -18,3 +18,9 @@ data/telemetry/
 # NOTE: data/papers/*.pdf and data/vector_store/ are intentionally COMMITTED
 # so the repo is self-contained and a hosted demo can serve answers without
 # a rebuild step. See README "What's committed and why".
+
+# Cached generated answers, so judge.py can grade the exact answers evaluate.py
+# scored without paying to regenerate them. Derived data: regenerate with
+# `python evaluate.py --generate`. Not committed -- it is large, and it goes
+# stale the moment the corpus or the prompt changes.
+eval/.answers_cache.json

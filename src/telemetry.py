@@ -91,6 +91,21 @@ REFUSAL_MARKERS = (
     "is not specified",
     "are not specified",
     "not detailed in the provided",
+    # Added after the evaluation suite caught a miss: the model refused with
+    # "The provided text does not explicitly confirm whether ..." and was
+    # scored as a hallucination on an unanswerable question, because none of
+    # the markers above matched. These are the hedged forms of a refusal --
+    # the model declining without using the word "cannot".
+    "does not explicitly",
+    "do not explicitly",
+    "does not state",
+    "do not state",
+    "does not specify",
+    "do not specify",
+    "does not confirm",
+    "is not stated",
+    "are not stated",
+    "is not clear from",
 )
 
 # Matching those phrases *anywhere* in the answer was the obvious first

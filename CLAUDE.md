@@ -31,7 +31,17 @@ cd src
 ../.venv/Scripts/python.exe agent_rag.py "question"   # agentic (grep/read loop) answer
 ../.venv/Scripts/python.exe compare_rag.py     # semantic vs agentic -> eval/comparison.md
 ../.venv/Scripts/python.exe measure_threshold.py  # re-derive config.LOW_CONFIDENCE_THRESHOLD
-../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat + library + metrics)
+
+# Evaluation suite. The first four make NO API calls (retrieval scoring is local).
+../.venv/Scripts/python.exe evaluate.py        # retrieval: hit rate, MRR, coverage, per type
+../.venv/Scripts/python.exe baselines.py       # vs BM25 and random -> eval/baselines.md
+../.venv/Scripts/python.exe sweep.py           # chunk size x top-k grid -> eval/sweep.md
+../.venv/Scripts/python.exe robustness.py      # typos/casual/keywords -> eval/robustness.md
+../.venv/Scripts/python.exe evaluate.py --generate --pause 4.5   # + answers, facts, refusal
+../.venv/Scripts/python.exe closed_book.py --pause 4.5           # -> eval/closed_book.md
+../.venv/Scripts/python.exe judge.py           # LLM judge cross-check -> eval/judge.md
+
+../.venv/Scripts/streamlit.exe run app.py      # web GUI (chat + library + metrics + evaluation)
 ```
 
 There is no test suite, linter, or build step - this is a linear script pipeline, not a package.
@@ -51,6 +61,21 @@ data/papers/*.pdf
   -> app.py             (Streamlit web GUI: Ask / Library / Metrics tabs)
   -> evaluate.py        reads eval/test_questions.json -> eval/results.md
   -> telemetry.py       both front ends -> data/telemetry/events.jsonl -> Metrics tab
+```
+
+The evaluation suite is a second, parallel structure -- every script imports its scoring
+from `eval_core.py` and writes one markdown report plus its section of `eval/summary.json`:
+
+```
+eval/test_questions.json  (55 labelled questions: 40 answerable + 15 unanswerable)
+  -> eval_core.py       metrics, Wilson/bootstrap intervals, fact matching, retry, caching
+       -> evaluate.py     retrieval + (--generate) answers, facts, refusal -> results.md
+       -> baselines.py    vs BM25 and random                               -> baselines.md
+       -> closed_book.py  with vs without documents                        -> closed_book.md
+       -> sweep.py        chunk size x top-k grid, in-memory indexes       -> sweep.md
+       -> robustness.py   typos / casual / keyword-only variants           -> robustness.md
+       -> judge.py        LLM judge cross-check, reads the answer cache    -> judge.md
+  -> eval/summary.json  <- headline numbers, read by the app's Evaluation tab
 ```
 
 `cli.py` and `app.py` are two interchangeable front ends over the same `generate.answer_traced()` --
@@ -121,12 +146,42 @@ eval k-values) live in one place: `src/config.py`. Change knobs there, not inlin
   in the first ~150 chars. `config.LOW_CONFIDENCE_THRESHOLD` is measured by `measure_threshold.py`, not
   guessed; re-run it whenever the corpus or embedding model changes. `evaluate.py` deliberately does
   *not* log telemetry, so batch eval runs don't skew production metrics.
-- **Evaluation** (`evaluate.py`): retrieval quality is automated (Hit Rate@k and Precision@k against
-  hand-labeled `correct_papers` per question in `eval/test_questions.json`); answer faithfulness is
-  deliberately *not* automated (no LLM-as-judge) — `evaluate.py` instead writes a report
-  (`eval/results.md`) pairing each generated answer with its retrieved chunks for manual review. Note
-  the terminology distinction preserved in the code comments: Hit Rate@k ("did we find the right paper
-  at all") vs. strict Precision@k ("how much noise is in the top-k") are commonly conflated but different.
+- **Evaluation** (`eval_core.py` + six scripts): all scoring primitives live in `eval_core.py` so every
+  arm scores identically — the comparisons between them are the whole point. Test set is 55 labelled
+  questions in `eval/test_questions.json` (40 answerable + 15 deliberately unanswerable), each with
+  `correct_papers`, `must_mention` facts, and a `type` tag. Things not to undo when editing:
+  - **Two interval types, on purpose.** Proportions get a **Wilson** interval, means get a seeded
+    **bootstrap**. Bootstrapping a proportion degenerates at the boundary (40/40 resamples to
+    `[1.00, 1.00]`, claiming certainty 40 questions cannot support); Wilson gives `[0.91, 1.00]`.
+    The bootstrap seed is fixed so intervals do not wobble between runs.
+  - **Each required fact is a LIST of accepted spellings**, satisfied if any appears. Directly caused
+    by the `Temporal-Discriminability` hyphen bug — one hyphen silently zeroed a score.
+  - **Hit Rate@k must not be quoted for `multi_paper` questions.** They accept 3-4 of 9 papers, so
+    five *random* chunks score the same 0.86 as the real system. `papers_covered()` is the metric
+    that means something there (0.37, i.e. retrieval finds one paper and stops).
+  - **Baselines are not strawmen** (`baselines.py`): BM25 proper, not word-overlap counting, plus a
+    seeded random floor. Measured result: BM25 0.85 vs semantic 0.93 with *overlapping intervals* —
+    the test set cannot establish the embeddings win overall; they clearly win on `paraphrase` only.
+    Random uses `zlib.crc32`, not `hash()`, which is salted per process and made the "reproducible"
+    floor move between runs.
+  - **`sweep.py` never touches the committed index** — candidate indexes are built in memory. It also
+    holds overlap at a constant *fraction* of chunk size, or the comparison confounds two variables.
+  - **`closed_book.py` gets its own prompt**, not `build_prompt()` with empty context. The RAG prompt
+    orders answering only from context, so with no context it would refuse everything and the
+    experiment would measure the prompt rather than the model's memory.
+  - **`judge.py` is a cross-check, never the headline.** It judges every answer twice and reports
+    self-consistency *before* any verdict, because the 2026 literature finds judge-human correlation
+    around 0.55 and far worse position bias in Flash-class models than Pro-class ones — and this
+    project runs a Flash-class model for cost. Its real output is where it disagrees with the
+    deterministic fact check.
+  - Answers are cached to `eval/.answers_cache.json` so `judge.py` grades the *same* answers the fact
+    checker graded; regenerating would make any disagreement possibly just resampling.
+  - Headline numbers go to `eval/summary.json` via `ec.update_summary()`; the app's Evaluation tab
+    reads that rather than parsing the markdown reports, so rewording a report cannot break the UI.
+  - Terminology distinction preserved in the code comments: Hit Rate@k ("did we find the right paper
+    at all") vs. strict Precision@k ("how much noise is in the top-k") are commonly conflated.
+  - **Every number is corpus-specific.** Re-run all of these plus `measure_threshold.py` after adding
+    papers; the random floor in particular falls as the corpus grows.
 
 ### Data flow contracts between stages
 

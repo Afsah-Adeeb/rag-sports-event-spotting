@@ -173,18 +173,26 @@ def chunk_paragraphs(paragraphs, chunk_size, overlap):
     return overlapped
 
 
-def chunks_from_pages(pages, source_paper):
+def chunks_from_pages(pages, source_paper, chunk_size=None, overlap=None):
     """Shared core: (page_num, text) pairs -> list of chunk records.
 
     Split out from process_paper() so the Streamlit app can chunk an uploaded
     PDF held in memory through the exact same boilerplate-stripping and
     chunking path as the offline pipeline -- one implementation, so a browser
     upload and a `ingest.py` run can never drift apart.
+
+    `chunk_size`/`overlap` default to the values in config.py. They are
+    parameters rather than constants so sweep.py can re-chunk the corpus at
+    several sizes in one process to find out which one is actually best --
+    without that, "why 1000 characters?" has no answer but "it seemed fine".
     """
+    chunk_size = chunk_size or config.CHUNK_SIZE
+    overlap = config.CHUNK_OVERLAP if overlap is None else overlap
+
     boilerplate = find_boilerplate_lines(pages)
     pages = strip_boilerplate(pages, boilerplate)
     paragraphs = pages_to_paragraphs(pages)
-    chunks = chunk_paragraphs(paragraphs, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
+    chunks = chunk_paragraphs(paragraphs, chunk_size, overlap)
 
     stem = source_paper[:-4] if source_paper.lower().endswith(".pdf") else source_paper
     records = []

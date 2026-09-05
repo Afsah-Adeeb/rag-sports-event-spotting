@@ -86,14 +86,262 @@ git add data/ && git commit -m "Add papers" && git push
 
 ## Evaluation
 
-Replace the example questions in `eval/test_questions.json` with your own (same
-`{"question": ..., "correct_papers": [...]}` format), then:
+The system is measured against a hand-labelled test set of **55 questions** in
+`eval/test_questions.json`: 41 the corpus can answer, and 14 it deliberately cannot.
+Each question carries the paper(s) that count as a correct retrieval, the facts a good
+answer must contain, and a type tag (`simple`, `paraphrase`, `comparison`, `multi_paper`,
+`unanswerable`).
+
+Everything below is reproducible from that one file. The **🧪 Evaluation** tab in the app
+shows the same numbers without running anything.
+
+### Headline
+
+| Metric | Score [95% CI] |
+|---|---|
+| Hit Rate@5 | 0.93 [0.81–0.97] |
+| Hit Rate@1 | 0.63 [0.48–0.76] |
+| MRR | 0.72 [0.61–0.83] |
+| Precision@5 | 0.52 [0.41–0.62] |
+| **Correctly refused unanswerable questions** | **1.00 [0.78–1.00]** |
+
+Every figure carries a confidence interval, and the interval type is chosen per metric.
+Proportions use a **Wilson** interval; means use a **seeded bootstrap**. This is not
+decoration: bootstrapping a proportion collapses at the boundary — 40 hits out of 40
+resamples to 40/40 every time and reports `[1.00, 1.00]`, claiming certainty no 40-question
+test set can support. Wilson gives `[0.91, 1.00]`, which is the honest answer.
+
+### Against baselines, because a number alone is not a result
+
+`baselines.py` runs the same questions through two alternatives with the same scoring code:
+
+| Metric | semantic | BM25 | random |
+|---|---|---|---|
+| Hit Rate@5 | 0.93 | 0.85 | 0.46 |
+| Hit Rate@1 | 0.63 | 0.54 | 0.20 |
+| MRR | 0.724 | 0.652 | 0.296 |
+
+BM25 is the real keyword-ranking algorithm, not a word-overlap strawman — beating a
+strawman would prove nothing. And the honest reading of that table is that **the
+intervals overlap: this test set cannot establish that the embeddings beat keyword
+search overall.**
+
+Where they *do* clearly win is on reworded questions, which is exactly what embeddings
+are for:
+
+| Type | semantic | BM25 |
+|---|---|---|
+| simple | 0.94 | 0.89 |
+| **paraphrase** | **0.88** | **0.75** |
+| comparison | 1.00 | 0.86 |
+
+The specific cases are more convincing than the average. *"Is there a benchmark for a
+racket sport played indoors on a small table?"* never says "table tennis"; *"what happens
+when the people labelling the videos put the timestamp slightly in the wrong place?"*
+never says "temporal misalignment". Semantic retrieval finds both. Character matching
+cannot.
+
+### What retrieval is actually worth
+
+Every other number here measures the system *with* retrieval. None of them prove retrieval
+is what produced the answer — and that matters, because these are nine well-known arXiv
+papers that were almost certainly in the model's training data.
+
+So `closed_book.py` asks all 55 questions twice with the same model: once through the full
+pipeline, once with **no documents at all**.
+
+| | Full RAG | No documents | Retrieval buys |
+|---|---|---|---|
+| Required facts present | 0.71 [0.62–0.79] | 0.58 [0.47–0.69] | **+0.13** |
+| **Refused the unanswerable questions** | **0.87** [0.62–0.96] | **0.00** [0.00–0.20] | **+0.87** |
+
+Read those two rows together, because they say opposite things and the second one is the
+point.
+
+**On knowledge, retrieval barely helps.** It buys 13 points. On 27 of the 40 answerable
+questions the model produced at least half the required facts *with nothing supplied* —
+it already knew them. Retrieval won 12 questions, tied 22, and actively lost 6. Anyone
+quoting 0.71 as what this pipeline achieves is claiming credit the model earned in
+pre-training.
+
+**On honesty, retrieval is the entire system.** Handed no documents, the model answered
+**every single one** of the 15 questions the corpus cannot answer — a 0% refusal rate, 15
+confident fabrications. Handed retrieved chunks that visibly fail to contain the answer,
+it declined 13 of 15.
+
+That inverts the usual pitch for RAG on a well-known corpus. The value here is not that
+the model knows more. It is that it knows **when to stop** — and that is a property
+retrieval creates rather than improves. It is also the honest answer to "why not just ask
+Gemini directly?": you would get answers of roughly similar quality, and fifteen
+fabrications you had no way to detect.
+
+*Measurement note: this table was produced on the pre-relabel test set (15 unanswerable
+questions, before `U02` was found to be mislabelled and reclassified). The fact-coverage
+figures move only marginally; the 0.87 RAG refusal rate is understated -- on the corrected
+set the same answers give 1.00. The refresh run hit the 500/day free-tier cap, so the
+table stays as measured rather than being quietly adjusted by hand.*
+
+The closed-book arm is given its own prompt rather than the RAG prompt with an empty
+context block. The RAG prompt orders the model to answer only from provided context, so
+with no context it would refuse everything and score zero — measuring the prompt instead
+of the model's memory.
+
+### The two flagged hallucinations were both bugs in the evaluation
+
+The first scored run flagged two answers as hallucinations — the system answering
+questions the corpus supposedly cannot answer. Reading both by hand, **neither was the
+system's fault.**
+
+**`U02` — "How does T-DEED perform on the SoccerNet Ball Action Spotting benchmark?"**
+Written as a deliberate trap on the reasoning that the T-DEED paper mentions that
+benchmark without evaluating on it. True — but the *SoccerNet* chapter covers T-DEED's
+win in detail and prints its scores in a results table. The answer was in the corpus, in
+a different paper. The system answered correctly and was marked wrong because the label
+was wrong. It is now `S19`, an answerable question, with the note kept.
+
+**`U12` — "Do any of these methods support live streaming input?"**
+The answer began *"The provided text does not explicitly confirm whether..."*, which is a
+refusal. `telemetry.looks_like_refusal()` matches a fixed list of phrases, and every entry
+was a blunt form — "does not contain", "cannot answer". None matched the hedged form. The
+marker list now includes them.
+
+With both fixed, correct refusal goes from 0.87 to **1.00 [0.78–1.00]** — the system
+declined every one of the 14 questions it should have, and hallucinated on none.
+
+Three things worth taking from that:
+
+- **A wrong label looks exactly like a model failure.** Both flags were indistinguishable
+  from real hallucinations in the aggregate. Only reading the individual cases separated
+  them, which is the argument for reports that name specific questions rather than just
+  reporting a rate.
+- **Re-scoring must be free, or you won't do it.** `evaluate.py --from-cache` re-applies
+  the scoring to cached answers with no API calls, so fixing the heuristic and seeing the
+  corrected number took seconds instead of 55 more generations. Same principle as the
+  monitoring layer, which stores raw signals and recomputes judgement on read.
+- **The interval still refuses to overclaim.** 14 out of 14 reports as `[0.78, 1.00]`, not
+  `[1.00, 1.00]`. Fourteen questions cannot establish perfection, and the metric says so.
+
+### Three findings worth reading
+
+**1. Retrieval confidence cannot detect unanswerable questions.**
+`config.LOW_CONFIDENCE_THRESHOLD` was measured against deliberately off-topic questions
+("What is the capital of Brazil?") and separated them cleanly. Against questions that are
+*on-topic in wording but unanswerable from the corpus*, it fails completely: **14 of the
+15 score above the threshold**, the highest at 0.706, while genuine questions drop as low
+as 0.332. Cosine similarity measures whether a passage is *about* your question, not
+whether it *answers* it, and no threshold value recovers that difference. The
+`hallucination_risk` flag on the Metrics tab inherits the blind spot. Documented in
+`config.py` rather than tuned away.
+
+**2. Hit Rate@k is the wrong metric for multi-paper questions.**
+On questions that accept three or four papers out of nine, five *random* chunks almost
+always touch one, so random retrieval scores the same 0.86 as the real system. Paper
+coverage — the fraction of *all* correct papers reached — tells the real story: 0.37.
+Top-k retrieval concentrates on whichever single paper matches best, and cosine similarity
+has no term for diversity. That is a fixable property of the retriever, not a limit of
+embeddings.
+
+**3. Typos hurt more than bad grammar.**
+`robustness.py` re-asks every question in three degraded forms, generated deterministically:
+
+| Variant | Hit Rate@5 | Same top paper as original |
+|---|---|---|
+| original | 0.93 | — |
+| typo | 0.76 | 0.46 |
+| casual | 0.80 | 0.85 |
+| keywords only | 0.90 | 0.80 |
+
+Stripping stopwords barely matters. Typos cost 17 points and change the top-ranked paper
+more than half the time. Stripping punctuation is its own hazard: it turns `T-DEED` into
+`tdeed` and `E2E-Spot` into `e2espot`, which is the same hyphen failure that broke a
+lexical search for `Temporal-Discriminability` earlier in this project.
+
+### The LLM judge, and why it is not the headline metric
+
+`judge.py` grades every answer for whether the retrieved context actually supports it —
+the standard LLM-as-judge setup. It runs against the *same cached answers* the
+deterministic fact check scored, so any difference between the two is a difference in
+judgement rather than in which answers were sampled.
+
+| | Result |
+|---|---|
+| Judge agrees with **itself** (same answer, judged twice) | 0.95 [0.85–0.98] |
+| Judge agrees with the **deterministic fact check** | 0.51 [0.36–0.66] |
+| Judge agrees with the **refusal heuristic** | 0.75 [0.62–0.84] |
+| Answers the judge flagged that fact-checking passed | **0** |
+
+Read the first two rows together. The judge is **highly repeatable and agrees with almost
+nothing else.** That is precisely the failure mode the 2026 literature warns about:
+judges with test-retest reliability above 0.95 have been measured carrying severe
+systematic bias at the same time. Repeatability is a precondition for trust, not evidence
+of it — and a project that ran the judge once and reported "0.95 consistency" would have
+looked rigorous while measuring nothing.
+
+The last row is the one that decides its usefulness here. The whole argument for a judge
+is that it catches fluent, confident, unsupported answers a string-matching metric cannot
+see. **It found zero.** Every disagreement ran the other way — 20 cases where required
+facts were missing but the judge passed the answer as well-grounded, which is a retrieval
+gap the judge is not equipped to notice.
+
+It also under-detects refusals badly: it returned `REFUSED` on 5 answers when the system
+actually declined roughly 19.
+
+One more detail worth keeping: self-consistency measured **0.98 on one run and 0.95 on
+the next**, same code, same answers, different calls. The stability metric is itself
+unstable at this sample size.
+
+So the judge stays in the repo, wired up and reported — but the deterministic fact check
+stays the headline. Being able to build one, measure it, and conclude it did not earn
+promotion is a better answer than either using it uncritically or avoiding it.
+
+### The settings are measured, not guessed
+
+`sweep.py` re-chunks and re-embeds the whole corpus at every chunk size and scores every
+top-k, building each candidate index **in memory** so the committed index is never
+touched. Overlap is held at a constant *fraction* of chunk size, so the comparison
+measures chunk size rather than chunk size and redundancy together.
+
+MRR across the grid:
+
+| chunk size | k=3 | k=5 | k=10 |
+|---|---|---|---|
+| 500 | 0.696 | 0.702 | 0.715 |
+| **1000** | 0.683 | **0.717** | 0.730 |
+| 1500 | 0.708 | 0.708 | 0.724 |
+
+Published ablations suggested ~500 characters might beat 1000, which is why it was worth
+running. On this corpus it does not: every cell sits within measurement error of every
+other. The defensible answer to "why 1000?" is therefore not "it's optimal" but **"it
+doesn't matter much, and here is the grid that shows it"** — and k=10 buys +0.013 MRR for
+double the prompt tokens on every query, which is not a trade worth making.
+
+### Running it
+
 ```
 cd "D:\RAG System\src"
-..\.venv\Scripts\python.exe evaluate.py
+
+..\.venv\Scripts\python.exe evaluate.py        # retrieval scores          (free)
+..\.venv\Scripts\python.exe baselines.py       # vs BM25 and random        (free)
+..\.venv\Scripts\python.exe sweep.py           # chunk size / top-k grid   (free)
+..\.venv\Scripts\python.exe robustness.py      # typos, casual, keywords   (free)
+
+..\.venv\Scripts\python.exe evaluate.py --generate --pause 4.5  # answers + refusal
+..\.venv\Scripts\python.exe closed_book.py --pause 4.5          # what retrieval is worth
+..\.venv\Scripts\python.exe judge.py                            # LLM judge cross-check
 ```
-Prints Hit Rate@k / Precision@k to the terminal and writes `eval/results.md` with every generated
-answer next to its retrieved sources, for manual faithfulness review.
+
+The first four make **no API calls at all** — retrieval scoring is local. That is what
+makes the sweep affordable and what keeps the default `evaluate.py` run free. The last
+three generate answers and are behind explicit flags.
+
+They run on `config.BENCHMARK_MODEL_NAME`, not the model the live app uses, because
+free-tier quota is per-model-per-day and a 55-question run on the app's model would
+exhaust the deployed demo's budget. `--pause 4.5` respects the measured 15-requests-minute
+free-tier limit; the retry logic is the safety net, not the plan.
+
+Reports land in `eval/` and are committed, so the Evaluation tab loads without re-running
+anything. **All of these numbers are corpus-specific — re-run every script after adding
+papers**, including `measure_threshold.py`.
 
 ## Semantic vs Agentic RAG (the comparison experiment)
 
@@ -166,6 +414,20 @@ cd "D:\RAG System\src"
 On the current 9-paper corpus the two groups separate cleanly (on-topic top-1 never below 0.394,
 off-topic never above 0.231), so `config.LOW_CONFIDENCE_THRESHOLD` sits at the midpoint, 0.32.
 Re-run this after changing the corpus or the embedding model — the number is corpus-specific.
+
+**And it has a measured blind spot, which is worth knowing before trusting this dashboard.**
+That clean separation only holds for questions that are off-topic in *vocabulary*. The
+evaluation suite includes 15 questions that are on-topic in wording but genuinely
+unanswerable from the corpus ("What is the carbon footprint of training these event
+spotting models?"), and **14 of the 15 score above the threshold** — the highest at 0.706,
+while real answerable questions drop as low as 0.332. The two groups overlap completely.
+
+Raising the threshold does not fix it: at 0.71 it would flag nearly every genuine question
+too. Cosine similarity measures whether a passage is *about* a question, not whether it
+*answers* it, and those are different properties. So `hallucination_risk` here reliably
+catches "the user asked about something else entirely" and does not catch "the corpus
+cannot answer this". The defence that does work is the model's own refusal behaviour,
+which `evaluate.py --generate` measures directly against those 15 questions.
 
 Terminal summary without opening the app:
 ```
