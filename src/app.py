@@ -56,6 +56,7 @@ except Exception:
     pass
 
 import telemetry  # noqa: E402  (must follow the secrets bridge)
+from crag import crag_answer  # noqa: E402
 from generate import answer_traced  # noqa: E402
 from ingest import process_pdf_bytes  # noqa: E402
 from retrieve import base_index_and_metadata, embed_texts  # noqa: E402
@@ -470,7 +471,7 @@ with metrics_tab:
 # ASK TAB
 # =============================================================================
 with chat_tab:
-    controls, _ = st.columns([1, 2])
+    controls, mode_col = st.columns([1, 2])
     with controls:
         st.slider(
             "Passages to retrieve per question",
@@ -478,10 +479,52 @@ with chat_tab:
             key="top_k",  # read below via session_state, since chat_input lives outside this tab
             help="How many chunks are pulled from the index and shown to the model as context.",
         )
+    with mode_col:
+        # The toggle exists so the two pipelines can be compared live, on the
+        # same question, in front of whoever is watching. Both paths run the
+        # identical retrieval; only what happens next differs.
+        st.radio(
+            "Pipeline",
+            options=["Corrective RAG", "Plain RAG"],
+            key="pipeline",
+            horizontal=True,
+            help=(
+                "Plain RAG sends every retrieved passage straight to the model. "
+                "Corrective RAG grades each passage first, then answers from the "
+                "ones that survive, searches deeper if too few do, or declines "
+                "rather than answering from passages it just judged irrelevant."
+            ),
+        )
 
     for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+
+            # What the corrective step decided, when CRAG produced this answer.
+            # Shown inline rather than buried, because the grading IS the
+            # feature -- an answer that looks identical to plain RAG's may have
+            # reached the model through a completely different route.
+            crag_info = message.get("crag")
+            if crag_info:
+                counts = crag_info["grade_counts"]
+                bits = [
+                    f"**{counts.get('relevant', 0)}** relevant",
+                    f"**{counts.get('partial', 0)}** partial",
+                    f"**{counts.get('irrelevant', 0)}** irrelevant",
+                ]
+                line = f"Graded {sum(counts.values())} passages — " + " · ".join(bits)
+                if crag_info["deepened"]:
+                    line += f" · searched deeper (top-{config.CRAG_DEEP_TOP_K})"
+                if crag_info["decision"] == "refuse":
+                    line += " · **declined to answer**"
+                else:
+                    line += f" · sent **{crag_info['kept_chunks']}** to the model"
+                st.caption(line)
+                if crag_info.get("grader_failed"):
+                    st.caption(
+                        "The grader did not return a usable verdict, so this answer "
+                        "fell back to plain-RAG behaviour."
+                    )
 
             if message.get("sources"):
                 with st.expander(f"Sources ({len(message['sources'])})"):
@@ -523,13 +566,29 @@ if question:
     st.session_state.messages.append({"role": "user", "content": question})
     top_k = st.session_state.get("top_k", config.DEFAULT_TOP_K)
 
-    with st.spinner("Retrieving passages and generating a grounded answer..."):
-        result = answer_traced(question, top_k=top_k, index=index, metadata=metadata)
+    use_crag = st.session_state.get("pipeline", "Corrective RAG") == "Corrective RAG"
+
+    if use_crag:
+        spinner = "Retrieving, grading each passage, then answering..."
+    else:
+        spinner = "Retrieving passages and generating a grounded answer..."
+
+    with st.spinner(spinner):
+        if use_crag:
+            result = crag_answer(question, top_k=top_k, index=index, metadata=metadata)
+        else:
+            result = answer_traced(question, top_k=top_k, index=index, metadata=metadata)
+
+    # CRAG returns a superset of answer_traced()'s shape, so everything below
+    # -- telemetry, sources, timings -- works unchanged for both pipelines.
+    # `sent_chunks` is what the model actually saw; plain RAG has no such
+    # distinction, so it falls back to everything retrieved.
+    shown_chunks = result.get("sent_chunks", result["chunks"])
 
     query_id = telemetry.log_query(
         question=question,
         answer=result["answer"],
-        retrieved_chunks=result["chunks"],
+        retrieved_chunks=shown_chunks,
         retrieval_ms=result["retrieval_ms"],
         generation_ms=result["generation_ms"],
         top_k=top_k,
@@ -538,14 +597,29 @@ if question:
         session_id=st.session_state.session_id,
     )
 
+    timing = (f"{result['retrieval_ms']:.0f} ms retrieval · "
+              f"{result['generation_ms'] / 1000:.1f} s generation")
+    if use_crag:
+        timing = (f"{result['retrieval_ms']:.0f} ms retrieval · "
+                  f"{result['grading_ms'] / 1000:.1f} s grading · "
+                  f"{result['generation_ms'] / 1000:.1f} s generation · "
+                  f"{result['api_calls']} API call"
+                  f"{'s' if result['api_calls'] != 1 else ''}")
+
     st.session_state.messages.append({
         "role": "assistant",
         "content": result["answer"],
-        "sources": result["chunks"],
+        "sources": shown_chunks,
         "query_id": query_id,
         "rating": None,
-        "timing": f"{result['retrieval_ms']:.0f} ms retrieval · "
-                  f"{result['generation_ms'] / 1000:.1f} s generation",
+        "timing": timing,
+        "crag": {
+            "decision": result["decision"],
+            "grade_counts": result["grade_counts"],
+            "deepened": result["deepened"],
+            "kept_chunks": result["kept_chunks"],
+            "grader_failed": result["grader_failed"],
+        } if use_crag else None,
     })
     st.rerun()
 

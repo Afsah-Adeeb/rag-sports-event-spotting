@@ -3,9 +3,12 @@
 
 A Retrieval-Augmented Generation (RAG) Q&A chatbot over a personal collection of research papers on
 sports video event-spotting / temporal action localization (SoccerNet, E2E-Spot, T-DEED, CALF, and
-related work). Built as a resume/portfolio project to demonstrate RAG fundamentals for ML/DS interviews —
-code is deliberately simple (no agents, no multi-hop retrieval, no complex chains) and every design
-decision is meant to be explainable in an interview.
+related work). Built as a resume/portfolio project for ML/DS interviews. The headline system is
+**Corrective RAG** (`crag.py`): retrieval is graded before it reaches the generator, and the flow
+branches on that grade. Plain RAG (`generate.answer_traced`) is kept deliberately as the baseline
+every CRAG number is measured against. Code stays simple and every design decision is meant to be
+explainable in an interview — where a framework is used, the judgement stays in hand-written
+functions and the framework only routes between them.
 
 ## Environment
 
@@ -25,6 +28,10 @@ cd src
 ../.venv/Scripts/python.exe retrieve.py "question here"   # manual retrieval sanity check
 ../.venv/Scripts/python.exe generate.py "question here"   # full retrieve+generate, one-shot
 ../.venv/Scripts/python.exe cli.py             # interactive Q&A loop
+../.venv/Scripts/python.exe grader.py "question"      # grade retrieved chunks only
+../.venv/Scripts/python.exe crag.py "question"        # full corrective flow
+../.venv/Scripts/python.exe crag.py --graph           # print the flow as Mermaid
+../.venv/Scripts/python.exe eval/crag_vs_rag.py --pause 4.5   # plain vs CRAG
 ../.venv/Scripts/python.exe eval/evaluate.py        # runs eval/test_questions.json -> eval/results.md
 ../.venv/Scripts/python.exe telemetry.py       # terminal summary of the runtime monitoring log
 ../.venv/Scripts/python.exe agentic/export_text.py     # PDFs -> data/papers_text/*.txt (for agentic arm)
@@ -61,6 +68,21 @@ data/papers/*.pdf
   -> app.py             (Streamlit web GUI: Ask / Library / Metrics tabs)
   -> evaluate.py        reads eval/test_questions.json -> eval/results.md
   -> telemetry.py       both front ends -> data/telemetry/events.jsonl -> Metrics tab
+```
+
+`crag.py` sits between retrieval and generation and turns the straight line into a
+flowchart. It is the headline pipeline; `generate.answer_traced()` remains as plain
+RAG, kept because it is the baseline every CRAG number is measured against:
+
+```
+question -> retrieve -> grade -+-> generate         (enough relevant -> answer)
+                          ^    |
+                          |    +-> deepen -> grade  (too thin -> top_k 5..15, re-grade)
+                          |    |
+                          |    +-> refuse           (nothing relevant -> decline)
+                          +----+
+  grader.py   the judgement: grading prompt, parsing, decide()
+  crag.py     the wiring: LangGraph nodes + one conditional edge
 ```
 
 The evaluation suite is a second, parallel structure -- every script imports its scoring
@@ -146,6 +168,32 @@ eval k-values) live in one place: `src/config.py`. Change knobs there, not inlin
   in the first ~150 chars. `config.LOW_CONFIDENCE_THRESHOLD` is measured by `measure_threshold.py`, not
   guessed; re-run it whenever the corpus or embedding model changes. `evaluate.py` deliberately does
   *not* log telemetry, so batch eval runs don't skew production metrics.
+- **Corrective RAG** (`grader.py`, `crag.py`): grades each retrieved chunk
+  relevant/partial/irrelevant, then branches. Things that will look arbitrary but are not:
+  - **The grader is an LLM reading the passage, not a similarity cutoff.** That is not a
+    style preference — `config.LOW_CONFIDENCE_THRESHOLD` was *measured* to fail at this
+    job (14 of 15 unanswerable questions score above it) because cosine similarity
+    captures whether a passage is *about* a question, never whether it *answers* one.
+    Verified on the exact case that beat the threshold: chunks scoring 0.535–0.592, all
+    15 graded irrelevant, flow refused without calling the generator.
+  - **`deepen` is not query rewriting.** It re-runs the *same* query at a larger top_k.
+    Retrieval is a local FAISS search and costs nothing; rewriting needs an extra model
+    call and belongs to Stage 2. Deepening also surfaces more distinct papers, the only
+    Stage-1 lever against the multi_paper coverage problem.
+  - **Only NEW chunks are re-graded after deepening.** FAISS returns top-15 with top-5 as
+    its exact prefix, so re-grading all 15 pays twice for five known answers (6,070 vs
+    4,756 input tokens measured). The prefix assumption is *checked*, not trusted.
+  - **`generate_node` must not overwrite `chunks`.** It sets `sent_chunks` instead.
+    Retrieval metrics have to measure the same thing on both arms; scoring CRAG on the
+    set grading already cleaned would flatter it for free. `crag_vs_rag.py` scores both
+    arms on *the context the generator received*, which is the only fair comparison.
+  - **The grader fails OPEN.** An API error or unparseable reply grades everything
+    relevant and degrades to plain RAG. Failing closed would turn a JSON hiccup into a
+    refusal to answer a good question.
+  - Cost is 1 call when it refuses (generation skipped), 2 normally, 3 when it deepens.
+    `crag_answer()` reports `api_calls` so the trade stays measured.
+  - `CRAG_MIN_RELEVANT` is the knob worth sweeping — it decides how often the flow
+    deepens, and therefore most of CRAG's cost.
 - **Evaluation** (`eval_core.py` + six scripts): all scoring primitives live in `eval_core.py` so every
   arm scores identically — the comparisons between them are the whole point. Test set is 55 labelled
   questions in `eval/test_questions.json` (40 answerable + 15 deliberately unanswerable), each with

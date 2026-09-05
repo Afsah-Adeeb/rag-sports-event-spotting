@@ -2,8 +2,15 @@
 
 **Live demo: [rag-event-spotting.streamlit.app](https://rag-event-spotting.streamlit.app/)**
 
-A RAG (Retrieval-Augmented Generation) chatbot that answers questions about a personal collection of
-research papers on sports video event-spotting / temporal action localization, with cited, grounded answers.
+A **Corrective RAG (CRAG)** chatbot over a personal collection of research papers on sports video
+event-spotting / temporal action localization.
+
+Retrieved passages are **graded before they reach the model**, and the pipeline branches on that
+grade — answer from what survives, search deeper if too little does, or decline rather than answer
+from passages it just judged irrelevant. Plain RAG is kept as the baseline every number here is
+measured against.
+
+Built with FAISS, local sentence-transformers embeddings, Gemini, LangGraph and Streamlit.
 
 ## First-time setup
 
@@ -84,7 +91,177 @@ then Streamlit Cloud auto-redeploys within a minute or two:
 git add data/ && git commit -m "Add papers" && git push
 ```
 
+## How it works: Corrective RAG
+
+Plain RAG is a straight line — retrieve five passages, hand all five to the model, hope
+they were the right ones. Nothing inspects what came back.
+
+This system inserts a **grading step** between retrieval and generation, and branches on
+the result:
+
+```
+question
+   ↓
+retrieve (top-5)
+   ↓
+GRADE every passage:  relevant / partial / irrelevant
+   ↓
+   ├─ enough relevant  →  answer from what survived
+   ├─ too thin         →  search deeper (top-15), re-grade, decide again
+   └─ nothing relevant →  decline, without calling the generator at all
+```
+
+Two files, split on purpose:
+
+| | |
+|---|---|
+| `src/grader.py` | **The judgement.** The grading prompt, the parsing, the decision rule. Hand-written. |
+| `src/crag.py` | **The wiring.** LangGraph nodes and one conditional edge. Nothing but routing. |
+
+`python crag.py --graph` prints the flow as Mermaid, generated from the real wiring, so
+the diagram cannot drift from the code.
+
+### Why an LLM grader and not a similarity cutoff
+
+Because the cutoff was measured and it does not work.
+
+`config.LOW_CONFIDENCE_THRESHOLD` was derived from real score distributions, and the
+evaluation suite then found that **14 of 15 questions the corpus genuinely cannot answer
+still score above it** — the highest at 0.706, while real answerable questions drop as
+low as 0.332. The groups overlap completely.
+
+That is not a badly-chosen number. Cosine similarity measures whether a passage is
+*about* your question; it has no way to express whether the passage *answers* it. A
+chunk can be squarely on-topic and contain nothing that resolves anything.
+
+The clearest case: *"What is the carbon footprint of training these models?"* The five
+retrieved chunks score **0.535–0.592**, comfortably above the threshold. The grader reads
+them and returns **15 of 15 irrelevant**. The flow refuses without ever calling the
+generator.
+
+### Why LangGraph rather than an if-statement
+
+Honestly, this control flow is small enough to write by hand. What LangGraph provides is
+the **cycle**: `deepen` routes back into `grade`, so the graph revisits a node it already
+ran. Ordinary chains are directed and acyclic — they cannot express *"go back and try
+again"*, which is the defining shape of every corrective and agentic pattern.
+
+The judgement stays in plain functions. The framework only decides which function runs
+next.
+
+### What "deepen" is, and is not
+
+It re-runs the **same query** at a larger `top_k` and re-grades. It is *not* query
+rewriting — that needs an extra model call to invent a new question and belongs to a
+later stage. Retrieval here is a local FAISS search costing nothing, so this is the
+cheapest correction available.
+
+Only the **new** chunks are re-graded. FAISS returns the top-15 with the top-5 as its
+exact prefix, so re-grading all fifteen would pay twice for five answers already known
+(6,070 vs 4,756 input tokens, measured). The prefix assumption is checked, not trusted.
+
+---
+
+## Does the correction actually help?
+
+`eval/crag_vs_rag.py` runs both pipelines over the same 55 questions with the same model
+and the same scoring code.
+
+**Both arms are scored on the context the generator received** — not on everything
+retrieval returned. Plain RAG sends the five chunks it retrieved; CRAG grades those five,
+may look at fifteen, and sends its best five. Scoring CRAG on all fifteen would raise its
+hit rate for free, and would measure search depth instead of judgement. Same budget of
+five passages: which arm fills them better?
+
+| | Plain RAG | CRAG | |
+|---|---|---|---|
+| Correctly refused (14 unanswerable) | 0.86 | **0.93** | ↑ |
+| Wrongly refused (answerable) | 0.15 | **0.07** | ↓ better |
+| Hit Rate@5 | 0.93 | **0.95** | ↑ |
+| Paper coverage | 0.78 | **0.83** | ↑ |
+| **Required facts present** | 0.72 | **0.80** | ↑ |
+| API calls per question | **1.0** | 2.5 | cost |
+| Input tokens per question | **1,473** | 4,503 | 3.1× |
+| Latency | **2.9 s** | 7.6 s | 2.6× |
+
+**All five quality metrics moved the right way. None of them individually clears the
+confidence intervals at this sample size.** Five out of five in the predicted direction
+is the real signal; any single row on its own is not evidence.
+
+### The strongest result: both refusal directions improved at once
+
+Those two usually trade off — you buy fewer hallucinations by refusing more, and pay for
+it in refusing things you could have answered. CRAG improved both:
+
+- **Plain RAG** answered 2 questions it should have declined, and wrongly refused 6.
+- **CRAG** answered 1, and wrongly refused 3 — a strict subset of plain RAG's 6.
+
+And it got there by two independent mechanisms, which is worth separating:
+
+- The **grader** structurally refused 10 of the 14 unanswerable questions. No generation
+  call at all.
+- On 3 more, grading passed but the **model's own prompt** declined.
+
+The second layer is the one plain RAG relies on alone — and it is not deterministic. An
+earlier run of the same plain pipeline on the same questions refused 14 of 14; this run
+refused 12 of 14. Same code, same prompt, different sampling. CRAG's first layer is an
+explicit graded decision you can log and inspect, rather than a hope about how the model
+feels today.
+
+### The clean case study
+
+**`S02` — "Which datasets did the E2E-Spot authors add frame-accurate annotations to?"**
+
+| | Plain RAG | CRAG |
+|---|---|---|
+| Outcome | refused | answered |
+| Required facts | **0.00** | **1.00** |
+
+The top-5 chunks did not carry the answer, so plain RAG declined. CRAG graded them,
+found too little, searched to top-15, found the passage, and answered completely.
+
+Not every case goes that way — on `C02` CRAG scored 0.33 against plain RAG's 0.67, so
+deepening can also pull in worse context. Both are in the report.
+
+### Is the grader any good?
+
+Judged against labels the test set already has, over **655 graded chunks**:
+
+| Check | Result |
+|---|---|
+| Chunks for *unanswerable* questions marked irrelevant | **0.97** |
+| Chunks from a *wrong* paper marked irrelevant | 0.63 |
+| Chunks from a *correct* paper kept | 0.49 |
+
+The first row is the headline and the direct comparison to the threshold this replaced:
+**the similarity cutoff flagged 1 of 15 unanswerable questions; the grader rejects 97% of
+their chunks.**
+
+The third row is deliberately *not* treated as an error rate. A chunk from the right
+paper might be that paper's reference list — the grader called one exactly that, *"only a
+list of names and no technical information"* — and marking it irrelevant is correct.
+
+### What it costs, plainly
+
+CRAG runs **3.1× the input tokens and 2.6× the latency**. That is the price of the extra
+grading call, and it is not small.
+
+Some of it comes back: it refused 10 questions outright, and a refusal skips generation
+entirely — so on exactly the questions plain RAG would have spent a call answering
+badly, CRAG spends less.
+
+The rest is the tunable. CRAG deepened on **38 of 55** questions, which is what drives the
+average to 2.5 calls. `config.CRAG_MIN_RELEVANT` decides how readily that happens and is
+the first knob to sweep if the cost matters more than the last few points of accuracy.
+
+
+---
+
 ## Evaluation
+
+Everything below measures the **plain RAG baseline** — the arm CRAG is compared against
+above. These are the numbers that made the case for building the corrective layer in the
+first place, and re-running them is how any future change gets checked.
 
 The system is measured against a hand-labelled test set of **55 questions** in
 `eval/test_questions.json`: 41 the corpus can answer, and 14 it deliberately cannot.
@@ -328,6 +505,7 @@ cd "D:\RAG System\src"
 ..\.venv\Scripts\python.exe eval/evaluate.py --generate --pause 4.5  # answers + refusal
 ..\.venv\Scripts\python.exe eval/closed_book.py --pause 4.5          # what retrieval is worth
 ..\.venv\Scripts\python.exe eval/judge.py                            # LLM judge cross-check
+..\.venv\Scripts\python.exe eval/crag_vs_rag.py --pause 4.5         # plain RAG vs CRAG
 ```
 
 The first four make **no API calls at all** — retrieval scoring is local. That is what
