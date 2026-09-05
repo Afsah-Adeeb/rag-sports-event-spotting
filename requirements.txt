@@ -11,3 +11,8 @@ numpy>=1.26.4            # array math, used by faiss + embeddings
 # for reproducibility since it's pure Python and doesn't have that failure mode.
 tqdm==4.67.1             # progress bars so you can see chunking/embedding progress
 streamlit==1.62.0        # web GUI for the chat interface
+langgraph==1.2.11        # branching/cyclic workflow graph for the CRAG flow (crag.py)
+# Floor-free exact pin: pure Python, and CRAG's behaviour depends on the graph
+# API staying put. Note this pulls langchain-core as a transitive dependency --
+# that is LangChain's runtime interfaces, not the LangChain chains library, and
+# nothing in this project uses LangChain itself.

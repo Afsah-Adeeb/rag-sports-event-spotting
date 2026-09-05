@@ -140,3 +140,24 @@ API_RATE_LIMIT_RPM = 15
 API_MIN_PAUSE_SECONDS = 60 / API_RATE_LIMIT_RPM  # 4.0
 API_RETRY_ATTEMPTS = 5
 API_RETRY_BASE_SECONDS = 20
+
+# --- Corrective RAG (see grader.py / crag.py) ------------------------------
+# How many chunks must be graded "relevant" before the system answers straight
+# away. Below this, it retrieves deeper and re-grades once before deciding.
+#
+# 2 rather than 1 on purpose. With top_k=5 a healthy retrieval usually yields
+# 2-4 relevant chunks, so 1 would almost never trigger the correction and CRAG
+# would reduce to plain RAG plus an extra API call. This is the main knob worth
+# sweeping once there are enough questions to separate the settings.
+CRAG_MIN_RELEVANT = 2
+
+# How far down the ranked list to look when the first pass was too thin. The
+# retrieval itself is a local FAISS search and costs nothing; only the re-grade
+# costs a request. Deeper also surfaces MORE PAPERS, which is the one lever
+# Stage 1 has against the measured multi_paper coverage of 0.37.
+CRAG_DEEP_TOP_K = 15
+
+# Hard ceiling on retrieval attempts per question (initial + deepened). Without
+# it a stubborn question could loop; with it the worst case is a known 3 API
+# calls (grade, re-grade, answer).
+CRAG_MAX_ATTEMPTS = 2
