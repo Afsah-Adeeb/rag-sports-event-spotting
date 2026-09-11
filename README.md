@@ -1,6 +1,6 @@
 # Sports Event-Spotting Research Assistant
 
-**Live demo: [rag-event-spotting.streamlit.app](https://rag-event-spotting.streamlit.app/)**
+**Live demo: [rag-sports-event-spotting-z7ws4fascq-el.a.run.app](https://rag-sports-event-spotting-z7ws4fascq-el.a.run.app)** — containerised and running on Google Cloud Run.
 
 A **Corrective RAG (CRAG)** chatbot over a personal collection of research papers on sports video
 event-spotting / temporal action localization.
@@ -52,8 +52,9 @@ on the spot and become answerable within a few seconds.
 
 **These uploads live only in your browser session.** They are not written to the server, and they
 disappear when the app restarts or you reload. That's deliberate, for two reasons:
-- Streamlit Community Cloud's filesystem is ephemeral — anything written at runtime is wiped on the
-  next restart or redeploy, so "saving" it would silently lose your papers.
+- The container filesystem is ephemeral — anything written at runtime is wiped when the Cloud Run
+  instance is recycled, which happens whenever the service scales to zero. "Saving" an upload would
+  silently lose it.
 - The hosted app is public. Persisting uploads server-side would let any visitor permanently change
   the corpus everyone else queries.
 
@@ -85,10 +86,13 @@ cd "D:\RAG System\src"
 index in memory — restart it (stop with `Ctrl+C`, run the launch command again) so it picks up the new
 index. Just refreshing the browser tab is not enough.
 
-**To update the live demo:** commit and push the new PDFs *and* the regenerated `data/vector_store/`,
-then Streamlit Cloud auto-redeploys within a minute or two:
+**To update the live demo:** commit the new PDFs *and* the regenerated `data/vector_store/`, then
+redeploy. Cloud Run does not watch the repo, so the redeploy is explicit — which is a feature here:
+the index is baked into the image, so the running app can never disagree with the papers it was
+built from.
 ```
 git add data/ && git commit -m "Add papers" && git push
+gcloud run deploy rag-sports-event-spotting --source . --region asia-south1
 ```
 
 ## How it works: Corrective RAG
@@ -629,6 +633,38 @@ extracted text of copyrighted papers lives in the history. The only thing never 
 (and `.streamlit/secrets.toml`) — the API key.
 
 ## Deployment
+
+### How this is actually deployed (Google Cloud Run)
+
+The live demo runs as a container on Cloud Run. The whole deployment is one command, because
+the `Dockerfile` and `.dockerignore` in the repo root carry the configuration:
+
+```
+gcloud run deploy rag-sports-event-spotting --source . --region asia-south1 \
+  --allow-unauthenticated --memory 2Gi --cpu 2 --session-affinity \
+  --max-instances 3 --set-secrets GEMINI_API_KEY=gemini-api-key:latest
+```
+
+Four of those flags are not boilerplate, and getting any of them wrong breaks the app in a way
+that is annoying to diagnose:
+
+- **`--session-affinity`** — Streamlit keeps per-user state on the server and talks to the browser
+  over a websocket. Without affinity a user's requests can land on different instances and the
+  session silently resets mid-conversation.
+- **`--memory 2Gi`** — the default 512Mi is not enough to hold PyTorch plus the embedding model
+  plus the FAISS index. The container is OOM-killed during startup, which surfaces as a generic
+  "service unavailable" rather than anything that names memory.
+- **`--max-instances 3`** — a cost ceiling. Cloud Run will otherwise scale as far as traffic asks
+  it to, and this is a portfolio demo, not a service with a budget.
+- **`--set-secrets`** — the API key is read from Secret Manager into the environment at runtime.
+  It is never in the image, never in the repo, and rotating it does not require a rebuild.
+
+**Cold starts.** The service scales to zero, so an idle app has no running instance and the next
+visitor waits while one starts. Two things in the `Dockerfile` keep that bearable: PyTorch is
+installed from the CPU-only index (the default CUDA build adds gigabytes of GPU libraries that a
+Cloud Run instance can never use), and the embedding model is downloaded at *build* time rather
+than on first request. Keeping one instance always warm would remove the wait entirely, but costs
+roughly $25-40/month — not a trade worth making here.
 
 ### Do I need to keep a server running forever?
 

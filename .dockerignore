@@ -1,0 +1,38 @@
+# Keep the build context small. Everything listed here is either large,
+# regenerable, or a secret -- none of it belongs in the image.
+
+# 50MB of history. The image needs the working tree, never the repo.
+.git
+.gitignore
+
+# Local virtualenv: gigabytes, and built for Windows. The image installs its
+# own dependencies from requirements.txt.
+.venv
+
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Secrets. The deployed app reads GEMINI_API_KEY from the environment, which
+# Cloud Run populates from Secret Manager -- never from a file in the image.
+.env
+.env.example
+.streamlit/secrets.toml
+
+# Runtime monitoring log: per-deployment data, and it would ship whatever
+# questions were asked locally into a public image.
+data/telemetry/
+
+# Greppable text export used only by the agentic comparison arm (agentic/),
+# which the web app never calls.
+data/papers_text/
+
+# Cached generated answers for the evaluation suite. Regenerable, and only
+# read by scripts that are not part of the served app.
+eval/.answers_cache.json
+
+# Editor and OS noise.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
