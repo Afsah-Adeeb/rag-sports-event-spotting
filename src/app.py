@@ -59,7 +59,7 @@ import telemetry  # noqa: E402  (must follow the secrets bridge)
 from crag import crag_answer  # noqa: E402
 from generate import answer_traced  # noqa: E402
 from ingest import process_pdf_bytes  # noqa: E402
-from retrieve import base_index_and_metadata, embed_texts  # noqa: E402
+from retrieve import base_index_and_metadata, embed_texts, load_metadata  # noqa: E402
 
 # The Evaluation tab reads the headline numbers the evaluation suite writes.
 # That suite lives in src/eval/, which is not on the import path when app.py
@@ -189,7 +189,16 @@ st.session_state.setdefault("messages", [])
 st.session_state.setdefault("uploaded_chunks", [])
 st.session_state.setdefault("session_id", uuid.uuid4().hex[:12])
 
-index, metadata = active_index_and_metadata()
+# Metadata only, on purpose -- this is a JSONL read (~0.03s) and does NOT
+# trigger the embedding model.
+#
+# This line used to call active_index_and_metadata(), which loads the model,
+# which imports PyTorch. That put ~37 seconds between a visitor opening the
+# page and seeing anything at all, on every cold start -- and it was paid even
+# by someone who only wanted to read the Library or Evaluation tabs and never
+# asked a question. The index is now fetched at the point a question is
+# actually asked (see the Ask tab), so the page itself renders immediately.
+metadata = load_metadata() + st.session_state.uploaded_chunks
 stats = corpus_stats(metadata)
 session_papers = {c["source_paper"] for c in st.session_state.uploaded_chunks}
 
@@ -451,7 +460,7 @@ with metrics_tab:
                 }
                 for r in reversed(records)
             ])
-            st.dataframe(table, use_container_width=True, hide_index=True)
+            st.dataframe(table, width='stretch', hide_index=True)
 
             if config.TELEMETRY_LOG_PATH.exists():
                 st.download_button(
@@ -573,11 +582,21 @@ if question:
     else:
         spinner = "Retrieving passages and generating a grounded answer..."
 
+    # The embedding model is loaded HERE, not at page load. The first question
+    # asked against a given server process pays for it (~37s cold, dominated by
+    # the PyTorch import); every question after that is served from the cached
+    # resources. Deferring it to this point is what lets the page itself, the
+    # library listing and the metrics and evaluation tabs render instantly.
+    with st.spinner("Loading the embedding model (first question only)..."):
+        search_index, search_metadata = active_index_and_metadata()
+
     with st.spinner(spinner):
         if use_crag:
-            result = crag_answer(question, top_k=top_k, index=index, metadata=metadata)
+            result = crag_answer(question, top_k=top_k,
+                                 index=search_index, metadata=search_metadata)
         else:
-            result = answer_traced(question, top_k=top_k, index=index, metadata=metadata)
+            result = answer_traced(question, top_k=top_k,
+                                   index=search_index, metadata=search_metadata)
 
     # CRAG returns a superset of answer_traced()'s shape, so everything below
     # -- telemetry, sources, timings -- works unchanged for both pipelines.
@@ -748,7 +767,7 @@ with eval_tab:
                 "Hit@5": ci(e.get("hit")),
                 "MRR": ci(e.get("mrr"), pct=False),
             } for t, e in retr["by_type"].items()]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
             st.caption(
                 "This table, not the headline, is where the findings are. A single "
                 "average can read 85% while being 100% on simple lookups and near-zero "
@@ -789,7 +808,7 @@ with eval_tab:
                 "MRR": ci(v["mrr"], pct=False),
                 "Same top paper": "—" if n == "original" else ci(v["same_top"]),
             } for n, v in rob.items()]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
             st.caption(
                 "Every test question is written in careful academic English, which is "
                 "the easiest possible input. These variants are generated "
@@ -807,7 +826,7 @@ with eval_tab:
                 for k in sw["top_ks"]:
                     row[f"k={k}"] = f"{grid[f'{size}x{k}']['mrr']:.3f}"
                 rows.append(row)
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
             st.caption(
                 f"MRR across the grid. Committed: chunk {sw['committed']['chunk_size']}, "
                 f"top-k {sw['committed']['top_k']}. Best MRR: {sw['best_mrr']}. "

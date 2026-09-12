@@ -19,9 +19,26 @@ This module is deliberately just a function library (no CLI) -- Step 4
 import json
 
 import faiss
-from sentence_transformers import SentenceTransformer
 
 import config
+
+# sentence_transformers is deliberately NOT imported here. Importing it pulls in
+# the whole of PyTorch, which was measured at ~34 seconds -- and because app.py
+# imports this module at the top of the file, that cost was paid before
+# Streamlit could render a single pixel. The page sat blank for the entire
+# import, on every cold start.
+#
+# Measured breakdown of what startup was actually spending its time on:
+#     import sentence_transformers (i.e. torch)   33.8s
+#     load the embedding model weights             3.7s
+#     read the FAISS index + metadata              0.03s
+#     Streamlit's own server response              0.12s
+#
+# So the import alone was ~88% of it. The model was already lazily *loaded*
+# via the globals below; it was the *import* that was eager, which is an easy
+# thing to miss because the function looks lazy already. Moving it inside
+# _load_resources() means nothing that only needs metadata -- the library
+# listing, the metrics tab, the evaluation reports -- pays for torch at all.
 
 _model = None
 _index = None
@@ -32,6 +49,8 @@ def _load_resources():
     """Lazily load the embedding model, FAISS index, and metadata once per process."""
     global _model, _index, _metadata
     if _model is None:
+        # Imported here, not at module scope. See the note above.
+        from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer(config.EMBEDDING_MODEL_NAME)
     if _index is None:
         _index = faiss.read_index(str(config.FAISS_INDEX_PATH))
@@ -56,8 +75,30 @@ def embed_texts(texts):
     ).astype("float32")
 
 
+def load_metadata():
+    """Return just the chunk metadata, without touching the embedding model.
+
+    Everything that only describes the corpus -- which papers are in it, how
+    many chunks each has, what page ranges they cover -- needs this list and
+    nothing else. It is a plain JSONL read, measured at 0.03s.
+
+    Kept separate from base_index_and_metadata() so the app can render its
+    library, metrics and evaluation views immediately and defer the ~37s of
+    torch import plus model load until someone actually asks a question.
+    """
+    global _metadata
+    if _metadata is None:
+        with open(config.CHUNK_METADATA_PATH, encoding="utf-8") as f:
+            _metadata = [json.loads(line) for line in f]
+    return _metadata
+
+
 def base_index_and_metadata():
-    """Return the on-disk FAISS index and its metadata list (loaded once per process)."""
+    """Return the on-disk FAISS index and its metadata list (loaded once per process).
+
+    Triggers the embedding-model load. Call load_metadata() instead if you only
+    need to describe the corpus rather than search it.
+    """
     _, index, metadata = _load_resources()
     return index, metadata
 
